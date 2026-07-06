@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Users can read/write their own doc; admins can read all
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if request.auth.uid == uid;
+    }
+
+    // Clients: anyone signed in can read; only admins can write
+    match /clients/{clientId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Contracts: signed-in users can create; only submitter or admin can read
+    match /contracts/{contractId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (resource.data.submittedBy.uid == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+
+      match /versions/{versionId} {
+        allow read: if isSignedIn() &&
+          (get(/databases/$(database)/documents/contracts/$(contractId))
+            .data.submittedBy.uid == request.auth.uid || isAdmin());
+        allow create: if isSignedIn();
+        allow update, delete: if isAdmin();
+
+        match /issueThreads/{threadId} {
+          allow read, write: if isSignedIn() &&
+            (get(/databases/$(database)/documents/contracts/$(contractId))
+              .data.submittedBy.uid == request.auth.uid || isAdmin());
+        }
+      }
+    }
+  }
+}
