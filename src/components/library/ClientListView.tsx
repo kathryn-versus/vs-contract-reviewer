@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { subscribeClients, getOrCreateClient } from '@/lib/firebase/firestore';
+import { subscribeClients, getOrCreateClient, ensureClientDriveFolder } from '@/lib/firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type { ClientDoc, ContractDoc } from '@/lib/types';
@@ -16,6 +16,7 @@ export function ClientListView() {
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => subscribeClients(setClients), []);
 
@@ -42,9 +43,18 @@ export function ClientListView() {
 
   async function handleNewClient() {
     if (!newName.trim() || !user?.email) return;
-    await getOrCreateClient(newName.trim(), user.email);
-    setNewName('');
-    setAdding(false);
+    setCreating(true);
+    try {
+      const client = await getOrCreateClient(newName.trim(), user.email);
+      // Create the client's Drive folder right away — the client page shows
+      // a link to it as soon as this finishes (or a retry button if it
+      // failed, e.g. a transient Drive API error).
+      await ensureClientDriveFolder(client);
+      setNewName('');
+      setAdding(false);
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -65,7 +75,9 @@ export function ClientListView() {
             className="flex-1 border border-rule px-3 py-1.5 text-sm outline-none focus:border-ink"
             onKeyDown={(e) => e.key === 'Enter' && handleNewClient()}
           />
-          <Button variant="primary" onClick={handleNewClient}>Create</Button>
+          <Button variant="primary" onClick={handleNewClient} disabled={creating}>
+            {creating ? 'Creating…' : 'Create'}
+          </Button>
         </Card>
       )}
 
@@ -91,8 +103,10 @@ export function ClientListView() {
                   {mostRecent ? `Last upload ${new Date(mostRecent).toLocaleDateString()}` : 'No uploads yet'}
                 </p>
                 <p className="mt-2 font-mono text-[11px] uppercase tracking-wide">
-                  {client.msaContractId ? (
+                  {client.msaContractId || client.msaDriveFileId ? (
                     <span className="text-low">MSA on file</span>
+                  ) : client.noMsa ? (
+                    <span className="text-ink-faint">No MSA</span>
                   ) : (
                     <span className="text-med">MSA missing</span>
                   )}

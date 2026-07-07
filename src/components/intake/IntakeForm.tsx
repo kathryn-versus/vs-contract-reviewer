@@ -39,14 +39,19 @@ export function IntakeForm({
   user,
   onSubmit,
   submitting,
+  initialClientName,
 }: {
   user: User;
   onSubmit: (values: IntakeValues) => void;
   submitting: boolean;
+  /** Pre-fills the Client field — used when jumping here from a client's own
+   * page via "+ Upload contract", so the client doesn't need to be
+   * re-selected. */
+  initialClientName?: string;
 }) {
   const [clients, setClients] = useState<ClientDoc[]>([]);
   const [allContracts, setAllContracts] = useState<ContractDoc[]>([]);
-  const [clientName, setClientName] = useState('');
+  const [clientName, setClientName] = useState(initialClientName ?? '');
   const [projectName, setProjectName] = useState('');
   const [projectNumber, setProjectNumber] = useState('');
   const [docType, setDocType] = useState<DocType>('SOW');

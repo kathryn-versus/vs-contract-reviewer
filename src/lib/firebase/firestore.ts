@@ -59,6 +59,11 @@ export async function getOrCreateClient(name: string, createdBy: string): Promis
     slug,
     notes: '',
     msaContractId: null,
+    driveFolderId: null,
+    driveFolderUrl: null,
+    msaDriveFileId: null,
+    msaDriveUrl: null,
+    noMsa: false,
     createdAt: serverTimestamp(),
     createdBy,
   });
@@ -74,6 +79,53 @@ export async function getClient(clientId: string): Promise<ClientDoc | null> {
   const snap = await getDoc(doc(db, 'clients', clientId));
   if (!snap.exists()) return null;
   return { id: snap.id, ...(snap.data() as Omit<ClientDoc, 'id'>), createdAt: toMillis(snap.data().createdAt) };
+}
+
+export async function updateClientDrive(clientId: string, drive: { driveFolderId: string; driveFolderUrl: string }) {
+  await updateDoc(doc(db, 'clients', clientId), drive);
+}
+
+/**
+ * Ensures a client has a Drive folder, creating one (via the server-side
+ * Drive API route) if it doesn't already have one on file, and persisting
+ * the result. Idempotent — safe to call on every client, old or new; clients
+ * that already have a folder just get returned unchanged.
+ */
+export async function ensureClientDriveFolder(client: ClientDoc): Promise<ClientDoc> {
+  if (client.driveFolderId && client.driveFolderUrl) return client;
+  try {
+    const res = await fetch('/api/drive/ensure-client-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientName: client.name }),
+    });
+    const data = await res.json();
+    if (data.error) return client;
+    await updateClientDrive(client.id, { driveFolderId: data.folderId, driveFolderUrl: data.folderUrl });
+    return { ...client, driveFolderId: data.folderId, driveFolderUrl: data.folderUrl };
+  } catch {
+    // Non-fatal — the client page shows a "Create Drive folder" retry button
+    // whenever driveFolderUrl is still missing.
+    return client;
+  }
+}
+
+// Directly-uploaded MSA (no Claude analysis) — see ClientDetailView's
+// "Governing MSA" section. Setting a file clears noMsa (mutually exclusive),
+// and vice versa.
+export async function setClientMsaFile(clientId: string, msa: { msaDriveFileId: string; msaDriveUrl: string }) {
+  await updateDoc(doc(db, 'clients', clientId), { ...msa, noMsa: false });
+}
+
+export async function clearClientMsaFile(clientId: string) {
+  await updateDoc(doc(db, 'clients', clientId), { msaDriveFileId: null, msaDriveUrl: null });
+}
+
+export async function setClientNoMsa(clientId: string, noMsa: boolean) {
+  await updateDoc(
+    doc(db, 'clients', clientId),
+    noMsa ? { noMsa: true, msaDriveFileId: null, msaDriveUrl: null } : { noMsa: false }
+  );
 }
 
 // ── Contracts & Versions ─────────────────────────────────────────────────

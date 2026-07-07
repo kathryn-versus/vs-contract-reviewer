@@ -5,23 +5,33 @@ import { downloadFileBuffer } from './client';
 const MAX_MSA_CHARS = 20_000;
 
 /**
- * If the given client has a governing MSA on file (marked via Library →
- * matter → "Set as governing MSA"), pull its text straight from Drive so it
- * can be fed to Claude as context on this review — no manual re-entry of
- * standing positions required. Returns null (never throws) if there's no
- * governing MSA set, the file can't be found, or extraction fails — MSA
- * context is a nice-to-have and should never block a review.
+ * Pulls this client's governing MSA text from Drive so it can be fed to
+ * Claude as context on a review — no manual re-entry of standing positions
+ * required. Checks two sources, in order:
+ *   1. A directly-uploaded MSA file (Library → client page → "Upload MSA") —
+ *      the simpler, no-analysis path.
+ *   2. A fully-reviewed matter designated as governing MSA (Library →
+ *      matter → "Set as governing MSA") — the original flow.
+ * Returns null (never throws) if neither is set, the file can't be found, or
+ * extraction fails — MSA context is a nice-to-have and should never block a
+ * review.
  */
 export async function getGoverningMsaContext(clientId: string): Promise<string | null> {
   try {
     const clientSnap = await adminDb().collection('clients').doc(clientId).get();
     if (!clientSnap.exists) return null;
-    const msaContractId = clientSnap.data()?.msaContractId as string | null | undefined;
-    if (!msaContractId) return null;
+    const clientData = clientSnap.data();
 
-    const contractSnap = await adminDb().collection('contracts').doc(msaContractId).get();
-    if (!contractSnap.exists) return null;
-    const driveFileId = contractSnap.data()?.driveFileId as string | null | undefined;
+    let driveFileId = clientData?.msaDriveFileId as string | null | undefined;
+
+    if (!driveFileId) {
+      const msaContractId = clientData?.msaContractId as string | null | undefined;
+      if (!msaContractId) return null;
+
+      const contractSnap = await adminDb().collection('contracts').doc(msaContractId).get();
+      if (!contractSnap.exists) return null;
+      driveFileId = contractSnap.data()?.driveFileId as string | null | undefined;
+    }
     if (!driveFileId) return null;
 
     const { buffer, mimeType, name } = await downloadFileBuffer(driveFileId);
@@ -56,4 +66,3 @@ async function extractText(buffer: Buffer, mimeType: string, name: string): Prom
   // alt=media in a plain-text-friendly way here — skip rather than error.
   return null;
 }
-

@@ -70,6 +70,18 @@ export async function ensureMatterFolder(clientName: string, projectLabel: strin
   return { clientFolderId, matterFolderId };
 }
 
+/**
+ * Ensures a top-level client folder exists (Contract Reviews/{Client}/) and
+ * returns its id + a link to it. Used to create a client's Drive folder as
+ * soon as the client is added, rather than only lazily via
+ * ensureMatterFolder on their first contract upload.
+ */
+export async function ensureClientFolder(clientName: string): Promise<{ folderId: string; folderUrl: string }> {
+  const folderId = await findOrCreateFolder(clientName, ROOT_FOLDER_ID);
+  const folderUrl = await getFolderLink(folderId);
+  return { folderId, folderUrl };
+}
+
 function folderTimestamp(d: Date): string {
   // YYYY-MM-DD HHhMMm, local time. Kept in 24-hour, zero-padded form so
   // folder names still sort correctly in Drive's alphabetical listing — a

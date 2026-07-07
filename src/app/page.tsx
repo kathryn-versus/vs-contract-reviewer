@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { AppShell } from '@/components/layout/AppShell';
 import { IntakeForm, type IntakeValues } from '@/components/intake/IntakeForm';
@@ -27,7 +28,13 @@ export default function ReviewerPage() {
   return (
     <AuthGuard>
       <AppShell>
-        <ReviewerFlow />
+        {/* useSearchParams() (used below to pre-fill the client name when
+            arriving via a client page's "+ Upload contract" link) requires a
+            Suspense boundary for static generation to succeed in production —
+            same fix as /login. */}
+        <Suspense fallback={null}>
+          <ReviewerFlow />
+        </Suspense>
       </AppShell>
     </AuthGuard>
   );
@@ -35,6 +42,8 @@ export default function ReviewerPage() {
 
 function ReviewerFlow() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const initialClientName = searchParams.get('clientName') ?? undefined;
   const [step, setStep] = useState<Step>('intake');
   const [error, setError] = useState<string | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -198,7 +207,7 @@ function ReviewerFlow() {
   }
 
   if (step === 'intake') {
-    return <IntakeForm user={user} onSubmit={handleSubmit} submitting={false} />;
+    return <IntakeForm user={user} onSubmit={handleSubmit} submitting={false} initialClientName={initialClientName} />;
   }
 
   if (step === 'loading') {

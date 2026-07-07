@@ -1,3 +1,142 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo, AFTER
+# apply_new_client_features_part1.sh:
+#   bash apply_new_client_features_part2.sh
+#
+# Part 2 of 2: UI — new client Drive-folder link, upload-contract button and
+# MSA upload / No-MSA controls on the client page, and pre-filling the client
+# name when jumping to upload from there.
+set -e
+
+# ── 1. src/components/library/ClientListView.tsx — create Drive folder on add ──
+cat > "src/components/library/ClientListView.tsx" << 'VS_APPLY_EOF_clientlist'
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { subscribeClients, getOrCreateClient, ensureClientDriveFolder } from '@/lib/firebase/firestore';
+import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/hooks/useAuth';
+import type { ClientDoc, ContractDoc } from '@/lib/types';
+
+export function ClientListView() {
+  const { user } = useAuth();
+  const [clients, setClients] = useState<ClientDoc[]>([]);
+  const [contractsByClient, setContractsByClient] = useState<Record<string, ContractDoc[]>>({});
+  const [search, setSearch] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => subscribeClients(setClients), []);
+
+  // Fetch all contracts once and group client-side (small dataset expected).
+  useEffect(() => {
+    (async () => {
+      const { collection, getDocs: gd } = await import('firebase/firestore');
+      const snap = await gd(collection(db, 'contracts'));
+      const grouped: Record<string, ContractDoc[]> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data() as Omit<ContractDoc, 'id'>;
+        const c: ContractDoc = { id: d.id, ...data, createdAt: Date.now() };
+        grouped[c.clientId] = grouped[c.clientId] || [];
+        grouped[c.clientId].push(c);
+      });
+      setContractsByClient(grouped);
+    })().catch(() => {});
+  }, []);
+
+  const filtered = useMemo(
+    () => clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
+    [clients, search]
+  );
+
+  async function handleNewClient() {
+    if (!newName.trim() || !user?.email) return;
+    setCreating(true);
+    try {
+      const client = await getOrCreateClient(newName.trim(), user.email);
+      // Create the client's Drive folder right away — the client page shows
+      // a link to it as soon as this finishes (or a retry button if it
+      // failed, e.g. a transient Drive API error).
+      await ensureClientDriveFolder(client);
+      setNewName('');
+      setAdding(false);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="font-display text-2xl text-ink">Client Library</h1>
+        <Button variant="primary" onClick={() => setAdding((v) => !v)}>
+          + New Client
+        </Button>
+      </div>
+
+      {adding && (
+        <Card className="mb-6 flex items-center gap-2 p-4">
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Client name"
+            className="flex-1 border border-rule px-3 py-1.5 text-sm outline-none focus:border-ink"
+            onKeyDown={(e) => e.key === 'Enter' && handleNewClient()}
+          />
+          <Button variant="primary" onClick={handleNewClient} disabled={creating}>
+            {creating ? 'Creating…' : 'Create'}
+          </Button>
+        </Card>
+      )}
+
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search clients…"
+        className="mb-4 w-full border border-rule px-3 py-2 text-sm outline-none focus:border-ink"
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((client) => {
+          const matters = contractsByClient[client.id] ?? [];
+          const mostRecent = matters[0]?.createdAt;
+          return (
+            <Link key={client.id} href={`/library/${client.id}`}>
+              <Card className="p-4 transition hover:border-ink">
+                <p className="font-display text-lg text-ink">{client.name}</p>
+                <p className="mt-1 font-mono text-xs text-ink-faint">
+                  {matters.length} matter{matters.length === 1 ? '' : 's'}
+                </p>
+                <p className="mt-1 font-mono text-xs text-ink-faint">
+                  {mostRecent ? `Last upload ${new Date(mostRecent).toLocaleDateString()}` : 'No uploads yet'}
+                </p>
+                <p className="mt-2 font-mono text-[11px] uppercase tracking-wide">
+                  {client.msaContractId || client.msaDriveFileId ? (
+                    <span className="text-low">MSA on file</span>
+                  ) : client.noMsa ? (
+                    <span className="text-ink-faint">No MSA</span>
+                  ) : (
+                    <span className="text-med">MSA missing</span>
+                  )}
+                </p>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+VS_APPLY_EOF_clientlist
+echo "Wrote src/components/library/ClientListView.tsx"
+
+# ── 2. src/components/library/ClientDetailView.tsx — Drive link, upload,
+#      and MSA controls ──────────────────────────────────────────────────────
+cat > "src/components/library/ClientDetailView.tsx" << 'VS_APPLY_EOF_clientdetail'
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -321,3 +460,147 @@ function EditMatterModal({
     </div>
   );
 }
+VS_APPLY_EOF_clientdetail
+echo "Wrote src/components/library/ClientDetailView.tsx"
+
+# ── 3. src/components/intake/IntakeForm.tsx — accept initialClientName ──────
+python3 - << 'PYEOF'
+path = "src/components/intake/IntakeForm.tsx"
+with open(path) as f:
+    content = f.read()
+
+if "initialClientName" in content:
+    print("IntakeForm.tsx: already has initialClientName — nothing to do.")
+else:
+    old_sig = """export function IntakeForm({
+  user,
+  onSubmit,
+  submitting,
+}: {
+  user: User;
+  onSubmit: (values: IntakeValues) => void;
+  submitting: boolean;
+}) {"""
+    new_sig = """export function IntakeForm({
+  user,
+  onSubmit,
+  submitting,
+  initialClientName,
+}: {
+  user: User;
+  onSubmit: (values: IntakeValues) => void;
+  submitting: boolean;
+  /** Pre-fills the Client field — used when jumping here from a client's own
+   * page via "+ Upload contract", so the client doesn't need to be
+   * re-selected. */
+  initialClientName?: string;
+}) {"""
+
+    old_state = "  const [clientName, setClientName] = useState('');"
+    new_state = "  const [clientName, setClientName] = useState(initialClientName ?? '');"
+
+    if old_sig not in content or old_state not in content:
+        raise SystemExit(
+            "Expected signature/state not found in "
+            "src/components/intake/IntakeForm.tsx — aborting. Paste me the "
+            "current file and I'll fix it by hand."
+        )
+
+    content = content.replace(old_sig, new_sig).replace(old_state, new_state)
+    with open(path, "w") as f:
+        f.write(content)
+    print("IntakeForm.tsx: added initialClientName prop.")
+PYEOF
+
+# ── 4. src/app/page.tsx — read ?clientName= and pass it through ─────────────
+python3 - << 'PYEOF'
+path = "src/app/page.tsx"
+with open(path) as f:
+    content = f.read()
+
+if "useSearchParams" in content:
+    print("page.tsx: already reads useSearchParams — nothing to do.")
+else:
+    old_imports = """'use client';
+
+import { useState } from 'react';
+import { AuthGuard } from '@/components/layout/AuthGuard';"""
+    new_imports = """'use client';
+
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { AuthGuard } from '@/components/layout/AuthGuard';"""
+
+    old_default_export = """export default function ReviewerPage() {
+  return (
+    <AuthGuard>
+      <AppShell>
+        <ReviewerFlow />
+      </AppShell>
+    </AuthGuard>
+  );
+}"""
+    new_default_export = """export default function ReviewerPage() {
+  return (
+    <AuthGuard>
+      <AppShell>
+        {/* useSearchParams() (used below to pre-fill the client name when
+            arriving via a client page's "+ Upload contract" link) requires a
+            Suspense boundary for static generation to succeed in production —
+            same fix as /login. */}
+        <Suspense fallback={null}>
+          <ReviewerFlow />
+        </Suspense>
+      </AppShell>
+    </AuthGuard>
+  );
+}"""
+
+    old_flow_start = """function ReviewerFlow() {
+  const { user } = useAuth();
+  const [step, setStep] = useState<Step>('intake');"""
+    new_flow_start = """function ReviewerFlow() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const initialClientName = searchParams.get('clientName') ?? undefined;
+  const [step, setStep] = useState<Step>('intake');"""
+
+    old_intake_render = '    return <IntakeForm user={user} onSubmit={handleSubmit} submitting={false} />;'
+    new_intake_render = '    return <IntakeForm user={user} onSubmit={handleSubmit} submitting={false} initialClientName={initialClientName} />;'
+
+    missing = [
+        label for label, needle in [
+            ("imports", old_imports),
+            ("default export", old_default_export),
+            ("ReviewerFlow start", old_flow_start),
+            ("IntakeForm render", old_intake_render),
+        ] if needle not in content
+    ]
+    if missing:
+        raise SystemExit(
+            f"Expected block(s) not found in src/app/page.tsx: {missing} — "
+            "aborting. Paste me the current file and I'll fix it by hand."
+        )
+
+    content = (
+        content.replace(old_imports, new_imports)
+        .replace(old_default_export, new_default_export)
+        .replace(old_flow_start, new_flow_start)
+        .replace(old_intake_render, new_intake_render)
+    )
+    with open(path, "w") as f:
+        f.write(content)
+    print("page.tsx: reads ?clientName= and pre-fills the intake form.")
+PYEOF
+
+echo ""
+echo "Both parts done. Restart your dev server and test:"
+echo "  1. Add a new client from the Library — a Drive folder link should"
+echo "     appear on their page (or a 'Create Drive folder' button if it"
+echo "     failed, which you can click to retry)."
+echo "  2. Click '+ Upload contract' on a client page — it should jump to the"
+echo "     upload form with that client already filled in."
+echo "  3. On a client with no matters reviewed yet, try 'Upload MSA' and the"
+echo "     'No MSA for this client' checkbox."
+echo ""
+echo "Then commit and push (via GitHub Desktop) to trigger a new rollout."

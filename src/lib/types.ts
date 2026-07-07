@@ -16,7 +16,23 @@ export interface ClientDoc {
   name: string;
   slug: string;
   notes: string;
+  // Existing "governing MSA" flow — a fully-reviewed matter designated as
+  // this client's MSA from the Library (Matter → "Set as governing MSA").
   msaContractId: string | null;
+  // Drive folder for this client, created as soon as the client is added
+  // (rather than lazily on first contract upload) so there's always
+  // somewhere to open and drop files into right away.
+  driveFolderId: string | null;
+  driveFolderUrl: string | null;
+  // Directly-uploaded MSA (Library → client page → "Upload MSA") — stored
+  // straight to Drive with no Claude analysis, simpler than routing an MSA
+  // through the full review pipeline just to designate it as governing.
+  msaDriveFileId: string | null;
+  msaDriveUrl: string | null;
+  // Explicit "no MSA on file" flag, set from the client page — distinct from
+  // simply having neither of the two MSA fields above set (which just means
+  // "not yet addressed").
+  noMsa: boolean;
   createdAt: number;
   createdBy: string;
 }
