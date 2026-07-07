@@ -286,7 +286,7 @@ export function IntakeForm({
                 ))}
               </ul>
               <p className="mt-1.5 font-body text-xs text-ink-soft">
-                If this is the same contract, open it above instead of running a new review. If it's genuinely
+                If this is the same contract, open it above instead of running a new review. If it is genuinely
                 different (e.g. a same-named file for a different job), you can ignore this and continue.
               </p>
             </div>
