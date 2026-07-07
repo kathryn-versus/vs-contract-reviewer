@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo:
+#   bash apply_fix_login_suspense.sh
+set -e
+
+mkdir -p "$(dirname "src/app/login/page.tsx")"
+cat > "src/app/login/page.tsx" << 'VS_APPLY_EOF_login1'
 'use client';
 
 import { Suspense, useEffect } from 'react';
@@ -55,3 +62,9 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+VS_APPLY_EOF_login1
+
+echo ""
+echo "Restart your dev server if it's running to confirm the login page still"
+echo "works locally, then commit and push (via GitHub Desktop) to trigger the"
+echo "next rollout."
