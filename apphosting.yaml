@@ -55,7 +55,7 @@ env:
     value: "10ZEbJ_7clvGKMIfeuJmA8HAWGdqhb9EY"
     availability: [BUILD, RUNTIME]
   - variable: DRIVE_SERVICE_ACCOUNT_EMAIL
-    value: "Rdoco@vsnyc.tv"
+    value: "doco@vsnyc.tv"
     availability: [BUILD, RUNTIME]
   - variable: NOTIFY_EMAIL_PRIMARY
     value: "kathryn@vsnyc.tv"
