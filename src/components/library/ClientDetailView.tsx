@@ -56,6 +56,7 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   }
 
   async function handleToggleGoverningMsa(contractId: string) {
+    if (!client) return;
     if (client.msaContractId === contractId) {
       await clearGoverningMsa(clientId);
     } else {
