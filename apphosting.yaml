@@ -1,0 +1,62 @@
+env:
+  # ── Secrets (already set via `firebase apphosting:secrets:set`) ──────────
+  - variable: ANTHROPIC_API_KEY
+    secret: ANTHROPIC_API_KEY
+    availability: [BUILD, RUNTIME]
+  - variable: GOOGLE_CLIENT_SECRET
+    secret: GOOGLE_CLIENT_SECRET
+    availability: [BUILD, RUNTIME]
+  - variable: GOOGLE_DOCO_REFRESH_TOKEN
+    secret: GOOGLE_DOCO_REFRESH_TOKEN
+    availability: [BUILD, RUNTIME]
+  - variable: ADMIN_PRIVATE_KEY
+    secret: FIREBASE_ADMIN_PRIVATE_KEY
+    availability: [BUILD, RUNTIME]
+
+  # ── Plain config (not secret) — replace each REPLACE_ME with the value ───
+  # ── from the same-named line in your .env.local, then save this file. ────
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyBZQwOv4-qThpN-89E1oB-vAIe6foSzI5o"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "vs-contracts.firebaseapp.com"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "vs-contracts"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "vs-contracts.firebasestorage.app"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "712890070277"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:712890070277:web:876359b39a9b66a9a0336c"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_ALLOWED_DOMAIN
+    value: "vsnyc.tv"
+    availability: [BUILD, RUNTIME]
+  - variable: ADMIN_PROJECT_ID
+    value: "vs-contracts"
+    availability: [BUILD, RUNTIME]
+  - variable: ADMIN_CLIENT_EMAIL
+    value: "firebase-adminsdk-fbsvc@vs-contracts.iam.gserviceaccount.com"
+    availability: [BUILD, RUNTIME]
+  - variable: GOOGLE_CLIENT_ID
+    value: "712890070277-evntr6a8pl8tfqp7n4u1s6uag61d7hs9.apps.googleusercontent.com"
+    availability: [BUILD, RUNTIME]
+  - variable: GOOGLE_REDIRECT_URI
+    value: "https://versus-contracts.firebaseapp.com/__/auth/handler"
+    availability: [BUILD, RUNTIME]
+  - variable: CLAUDE_MODEL
+    value: "claude-sonnet-4-6"
+    availability: [BUILD, RUNTIME]
+  - variable: DRIVE_ROOT_FOLDER_ID
+    value: "10ZEbJ_7clvGKMIfeuJmA8HAWGdqhb9EY"
+    availability: [BUILD, RUNTIME]
+  - variable: DRIVE_SERVICE_ACCOUNT_EMAIL
+    value: "Rdoco@vsnyc.tv"
+    availability: [BUILD, RUNTIME]
+  - variable: NOTIFY_EMAIL_PRIMARY
+    value: "kathryn@vsnyc.tv"
+    availability: [BUILD, RUNTIME]
