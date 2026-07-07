@@ -19,7 +19,7 @@ import {
   getNextVersionNumber,
 } from '@/lib/firebase/firestore';
 import { STANDING_CONCERNS } from '@/lib/types';
-import type { Finding } from '@/lib/types';
+import type { Finding, DocType } from '@/lib/types';
 
 type Step = 'intake' | 'loading' | 'results' | 'error';
 
@@ -45,7 +45,7 @@ function ReviewerFlow() {
     clientName: string;
     projectName: string;
     projectNumber: string;
-    docType: string;
+    docType: DocType;
     counterparty: string;
     clientNotes: string | null;
     fileName: string;
