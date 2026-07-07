@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
@@ -8,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 export function TopNav() {
   const { user, role, signOut } = useAuth();
   const pathname = usePathname();
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const navLink = (href: string, label: string) => (
     <Link
@@ -45,9 +47,15 @@ export function TopNav() {
           {user && (
             <div className="flex items-center gap-3 border-l border-rule pl-6">
               <div className="flex items-center gap-2">
-                {user.photoURL ? (
+                {user.photoURL && !avatarFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.photoURL} alt="" className="h-7 w-7 rounded-full" />
+                  <img
+                    src={user.photoURL}
+                    alt=""
+                    className="h-7 w-7 rounded-full"
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarFailed(true)}
+                  />
                 ) : (
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-xs text-paper">
                     {(user.displayName ?? user.email ?? '?')[0]?.toUpperCase()}
@@ -70,3 +78,4 @@ export function TopNav() {
     </header>
   );
 }
+

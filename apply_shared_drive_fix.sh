@@ -1,5 +1,11 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo:
+#   bash apply_shared_drive_fix.sh
+set -e
+
+mkdir -p "$(dirname "src/lib/drive/client.ts")"
+cat > "src/lib/drive/client.ts" << 'VS_APPLY_EOF_shared1'
 import 'server-only';
-import { Readable } from 'stream';
 import { google } from 'googleapis';
 
 // All Drive operations run as doco@vsnyc.tv via OAuth 2.0, server-side only —
@@ -28,8 +34,8 @@ const ROOT_FOLDER_ID = process.env.DRIVE_ROOT_FOLDER_ID!;
 // includeItemsFromAllDrives on list) — required for the Drive API to see or
 // write to anything inside a Shared Drive ("Contributor" is a Shared Drive
 // permission level, not a personal-folder one, so DRIVE_ROOT_FOLDER_ID living
-// in a Shared Drive is why folder creation was 404ing with "File not found"
-// even though the folder was genuinely shared).
+// in a Shared Drive is the likely reason folder creation was 404ing with
+// "File not found" even though the folder was genuinely shared).
 
 async function findOrCreateFolder(name: string, parentId: string): Promise<string> {
   const drive = driveClient();
@@ -58,8 +64,8 @@ async function findOrCreateFolder(name: string, parentId: string): Promise<strin
 }
 
 /**
- * Ensures Contract Reviews/{Client}/{Job Number — Project}/ exists and
- * returns that folder's id. Matches the folder structure in brief §7.
+ * Ensures Contract Reviews/{Client}/{Project (Number)}/ exists and returns
+ * that folder's id. Matches the folder structure in brief §7.
  */
 export async function ensureMatterFolder(clientName: string, projectLabel: string): Promise<{
   clientFolderId: string;
@@ -70,27 +76,19 @@ export async function ensureMatterFolder(clientName: string, projectLabel: strin
   return { clientFolderId, matterFolderId };
 }
 
-function folderTimestamp(d: Date): string {
-  // YYYY-MM-DD HHhMMm, local time. Kept in 24-hour, zero-padded form so
-  // folder names still sort correctly in Drive's alphabetical listing — a
-  // 12-hour AM/PM format sorts wrong across the noon boundary (e.g.
-  // "9:05am" would alphabetically land after "2:32pm" as plain text). The
-  // "h"/"m" letters are just there so it visibly reads as a time instead of
-  // looking like an arbitrary numeric code.
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}h${pad(d.getMinutes())}m`;
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
 /**
- * Ensures a timestamped subfolder (down to the second) exists under a matter
- * folder, so every review run — the uploaded source file, its Google Doc
- * duplicate, and a copy of the generated report — gets its own folder
- * instead of multiple same-day runs piling into one shared date folder.
- * Makes the most recent run obvious at a glance in Drive's default
- * alphabetical sort.
+ * Ensures a dated subfolder exists under a matter folder — Contract
+ * Reviews/{Client}/{Project (Number)}/{YYYY-MM-DD}/ — so everything from one
+ * review run (the uploaded source file, its Google Doc duplicate, and a copy
+ * of the generated report) lands together instead of piling up flat in the
+ * project folder. Reused as-is if a review already ran that day.
  */
 export async function ensureDatedReviewFolder(matterFolderId: string, when: Date = new Date()): Promise<string> {
-  return findOrCreateFolder(folderTimestamp(when), matterFolderId);
+  return findOrCreateFolder(isoDate(when), matterFolderId);
 }
 
 export async function uploadFileToFolder(params: {
@@ -100,12 +98,8 @@ export async function uploadFileToFolder(params: {
   buffer: Buffer;
 }): Promise<{ fileId: string; webViewLink: string }> {
   const drive = driveClient();
+  const { Readable } = await import('stream');
 
-  // Readable is imported statically at the top of this file — a dynamic
-  // `await import('stream')` here previously came back with an odd shape
-  // under Next's server bundling, so `Readable` was undefined and
-  // `Readable.from(...)` threw "Cannot read properties of undefined
-  // (reading 'from')" on every upload attempt.
   const res = await drive.files.create({
     requestBody: { name: params.fileName, parents: [params.folderId] },
     media: { mimeType: params.mimeType, body: Readable.from(params.buffer) },
@@ -180,21 +174,44 @@ export async function downloadFileBuffer(
   const buffer = Buffer.from(res.data as ArrayBuffer);
   return { buffer, mimeType: meta.data.mimeType ?? 'application/octet-stream', name: meta.data.name ?? 'file' };
 }
+VS_APPLY_EOF_shared1
 
-/**
- * Adds a comment to a Drive file — used to attach drafted redline language to
- * the Google Doc copy of a contract. Not text-anchored: Google's Docs API/UI
- * silently ignores anchor data on Workspace editor files (confirmed platform
- * limitation, not something fixable from our side), so these land as general
- * document-level comments in the comment sidebar rather than highlighting the
- * exact flagged passage. Each comment's content includes the quoted contract
- * language so it's still easy to locate manually.
- */
-export async function addComment(fileId: string, content: string): Promise<void> {
-  const drive = driveClient();
-  await drive.comments.create({
-    fileId,
-    requestBody: { content },
-    fields: 'id',
-  });
+mkdir -p "$(dirname "src/app/api/drive/whoami/route.ts")"
+cat > "src/app/api/drive/whoami/route.ts" << 'VS_APPLY_EOF_shared2'
+import { NextResponse } from 'next/server';
+import { driveClient } from '@/lib/drive/client';
+
+// Diagnostic only — safe to delete once Drive is confirmed working. Confirms
+// which Google account the server's refresh token is actually authenticated
+// as, to rule out the OAuth Playground consent having been granted under the
+// wrong already-logged-in Google account instead of doco@vsnyc.tv.
+export async function GET() {
+  try {
+    const drive = driveClient();
+    const res = await drive.about.get({ fields: 'user' });
+    return NextResponse.json({ authenticatedAs: res.data.user });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
 }
+VS_APPLY_EOF_shared2
+
+echo ""
+echo "Done. 2 files updated/added:"
+echo "  src/lib/drive/client.ts           (added supportsAllDrives/includeItemsFromAllDrives to every Drive API call)"
+echo "  src/app/api/drive/whoami/route.ts (new — diagnostic route)"
+echo ""
+echo "Next steps:"
+echo "  1. Restart your dev server (Ctrl+C, then npm run dev)."
+echo "  2. Visit http://localhost:3000/api/drive/whoami in your browser."
+echo "     It should show { \"authenticatedAs\": { \"emailAddress\": \"doco@vsnyc.tv\", ... } }."
+echo "     If it shows a DIFFERENT email, that's the real problem — the OAuth"
+echo "     Playground refresh token was minted under the wrong Google account,"
+echo "     and that step needs to be redone signed in as doco@vsnyc.tv only"
+echo "     (use an incognito window to be sure)."
+echo "  3. If whoami correctly shows doco@vsnyc.tv, try uploading a contract"
+echo "     again — the Shared Drive fix above should resolve the 'File not"
+echo "     found' error on its own."

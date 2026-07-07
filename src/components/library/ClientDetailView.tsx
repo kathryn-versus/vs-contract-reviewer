@@ -10,6 +10,8 @@ import {
   updateClientNotes,
   moveContract,
   listClients,
+  setGoverningMsa,
+  clearGoverningMsa,
 } from '@/lib/firebase/firestore';
 import type { ClientDoc, ContractDoc } from '@/lib/types';
 
@@ -53,6 +55,15 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     listContractsForClient(clientId).then(setContracts);
   }
 
+  async function handleToggleGoverningMsa(contractId: string) {
+    if (client.msaContractId === contractId) {
+      await clearGoverningMsa(clientId);
+    } else {
+      await setGoverningMsa(clientId, contractId);
+    }
+    getClient(clientId).then(setClient);
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -67,8 +78,8 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
             {msaContract.projectName} ({msaContract.projectNumber})
           </p>
           <p className="mt-2 font-body text-sm text-ink-soft">
-            Standing positions extracted from this MSA are shown here so admins don&apos;t have to
-            re-read the full document. (Populate via Phase 2 MSA-memory extraction.)
+            Its text is automatically pulled from Drive and given to Claude as context on every
+            future SOW review for {client.name} — no manual setup needed per review.
           </p>
         </Card>
       )}
@@ -94,7 +105,13 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
       <div className="space-y-3">
         <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">Matters</p>
         {contracts.map((c) => (
-          <MatterCard key={c.id} contract={c} onEdit={() => setEditing(c)} />
+          <MatterCard
+            key={c.id}
+            contract={c}
+            onEdit={() => setEditing(c)}
+            isGoverningMsa={client.msaContractId === c.id}
+            onToggleGoverningMsa={() => handleToggleGoverningMsa(c.id)}
+          />
         ))}
         {contracts.length === 0 && (
           <p className="py-8 text-center font-mono text-sm text-ink-faint">No matters yet.</p>
@@ -163,3 +180,4 @@ function EditMatterModal({
     </div>
   );
 }
+

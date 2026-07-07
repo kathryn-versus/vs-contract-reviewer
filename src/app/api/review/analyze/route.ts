@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { claude, CLAUDE_MODEL, MAX_TOKENS, parseJsonResponse } from '@/lib/claude/client';
 import { buildAnalysisPrompt } from '@/lib/claude/prompts';
+import { getGoverningMsaContext } from '@/lib/drive/msaContext';
 import type { Finding, Severity } from '@/lib/types';
 
 interface RawFinding {
@@ -18,7 +19,7 @@ interface RawFinding {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { docType, counterparty, clientName, clientNotes, documentText } = body ?? {};
+    const { docType, counterparty, clientName, clientId, clientNotes, documentText } = body ?? {};
 
     if (!docType || !counterparty || !clientName || !documentText) {
       return NextResponse.json(
@@ -27,7 +28,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const prompt = buildAnalysisPrompt({ docType, counterparty, clientName, clientNotes, documentText });
+    // Auto-pull the client's governing MSA text from Drive, if one is on
+    // file — never blocks the review if it's missing or fails to extract.
+    const msaContext = clientId ? await getGoverningMsaContext(clientId) : null;
+
+    const prompt = buildAnalysisPrompt({ docType, counterparty, clientName, clientNotes, msaContext, documentText });
 
     const message = await claude().messages.create({
       model: CLAUDE_MODEL,
@@ -52,3 +57,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

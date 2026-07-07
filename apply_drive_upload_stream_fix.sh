@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo:
+#   bash apply_drive_upload_stream_fix.sh
+set -e
+
+mkdir -p "$(dirname "src/lib/drive/client.ts")"
+cat > "src/lib/drive/client.ts" << 'VS_APPLY_EOF_streamfix'
 import 'server-only';
 import { Readable } from 'stream';
 import { google } from 'googleapis';
@@ -58,8 +65,8 @@ async function findOrCreateFolder(name: string, parentId: string): Promise<strin
 }
 
 /**
- * Ensures Contract Reviews/{Client}/{Job Number — Project}/ exists and
- * returns that folder's id. Matches the folder structure in brief §7.
+ * Ensures Contract Reviews/{Client}/{Project (Number)}/ exists and returns
+ * that folder's id. Matches the folder structure in brief §7.
  */
 export async function ensureMatterFolder(clientName: string, projectLabel: string): Promise<{
   clientFolderId: string;
@@ -70,27 +77,19 @@ export async function ensureMatterFolder(clientName: string, projectLabel: strin
   return { clientFolderId, matterFolderId };
 }
 
-function folderTimestamp(d: Date): string {
-  // YYYY-MM-DD HHhMMm, local time. Kept in 24-hour, zero-padded form so
-  // folder names still sort correctly in Drive's alphabetical listing — a
-  // 12-hour AM/PM format sorts wrong across the noon boundary (e.g.
-  // "9:05am" would alphabetically land after "2:32pm" as plain text). The
-  // "h"/"m" letters are just there so it visibly reads as a time instead of
-  // looking like an arbitrary numeric code.
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}h${pad(d.getMinutes())}m`;
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
 /**
- * Ensures a timestamped subfolder (down to the second) exists under a matter
- * folder, so every review run — the uploaded source file, its Google Doc
- * duplicate, and a copy of the generated report — gets its own folder
- * instead of multiple same-day runs piling into one shared date folder.
- * Makes the most recent run obvious at a glance in Drive's default
- * alphabetical sort.
+ * Ensures a dated subfolder exists under a matter folder — Contract
+ * Reviews/{Client}/{Project (Number)}/{YYYY-MM-DD}/ — so everything from one
+ * review run (the uploaded source file, its Google Doc duplicate, and a copy
+ * of the generated report) lands together instead of piling up flat in the
+ * project folder. Reused as-is if a review already ran that day.
  */
 export async function ensureDatedReviewFolder(matterFolderId: string, when: Date = new Date()): Promise<string> {
-  return findOrCreateFolder(folderTimestamp(when), matterFolderId);
+  return findOrCreateFolder(isoDate(when), matterFolderId);
 }
 
 export async function uploadFileToFolder(params: {
@@ -101,7 +100,7 @@ export async function uploadFileToFolder(params: {
 }): Promise<{ fileId: string; webViewLink: string }> {
   const drive = driveClient();
 
-  // Readable is imported statically at the top of this file — a dynamic
+  // Readable is imported statically at the top of this file now — a dynamic
   // `await import('stream')` here previously came back with an odd shape
   // under Next's server bundling, so `Readable` was undefined and
   // `Readable.from(...)` threw "Cannot read properties of undefined
@@ -180,21 +179,14 @@ export async function downloadFileBuffer(
   const buffer = Buffer.from(res.data as ArrayBuffer);
   return { buffer, mimeType: meta.data.mimeType ?? 'application/octet-stream', name: meta.data.name ?? 'file' };
 }
+VS_APPLY_EOF_streamfix
 
-/**
- * Adds a comment to a Drive file — used to attach drafted redline language to
- * the Google Doc copy of a contract. Not text-anchored: Google's Docs API/UI
- * silently ignores anchor data on Workspace editor files (confirmed platform
- * limitation, not something fixable from our side), so these land as general
- * document-level comments in the comment sidebar rather than highlighting the
- * exact flagged passage. Each comment's content includes the quoted contract
- * language so it's still easy to locate manually.
- */
-export async function addComment(fileId: string, content: string): Promise<void> {
-  const drive = driveClient();
-  await drive.comments.create({
-    fileId,
-    requestBody: { content },
-    fields: 'id',
-  });
-}
+echo ""
+echo "Done. 1 file updated: src/lib/drive/client.ts"
+echo "Fixed: uploadFileToFolder now imports Readable statically instead of"
+echo "via a dynamic import(), which is what was actually crashing every upload."
+echo ""
+echo "Restart your dev server (Ctrl+C, then npm run dev) and try uploading again."
+echo "Once the file uploads successfully, the 'Open in Google Docs' button"
+echo "should stop being grayed out too (it only unlocks once both driveFileId"
+echo "and driveFolderId come back from a successful /api/drive/upload)."

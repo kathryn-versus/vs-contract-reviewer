@@ -1,3 +1,92 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo:
+#   bash apply_duplicate_filename_check.sh
+set -e
+
+# ── 1. firestore.ts — add findContractsByFileName (collection-group query) ──
+
+python3 - << 'PYEOF'
+path = "src/lib/firebase/firestore.ts"
+with open(path) as f:
+    content = f.read()
+
+if "findContractsByFileName" in content:
+    print("firestore.ts: findContractsByFileName already present — nothing to do.")
+else:
+    old_import = """import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  limit as fsLimit,
+  serverTimestamp,
+  Timestamp,
+  onSnapshot,
+} from 'firebase/firestore';"""
+
+    new_import = """import {
+  collection,
+  collectionGroup,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  limit as fsLimit,
+  serverTimestamp,
+  Timestamp,
+  onSnapshot,
+} from 'firebase/firestore';"""
+
+    if old_import not in content:
+        raise SystemExit("Expected firestore.ts import block not found — aborting. Paste me the current file and I'll fix it by hand.")
+    content = content.replace(old_import, new_import)
+
+    anchor = "export async function getContract(contractId: string): Promise<ContractDoc | null> {"
+    if anchor not in content:
+        raise SystemExit("getContract anchor not found in firestore.ts — aborting. Paste me the current file and I'll fix it by hand.")
+
+    addition = """/**
+ * Finds every version, across every contract, uploaded with this exact file
+ * name — used by the intake form to warn a reviewer before they accidentally
+ * re-review a contract that's already on file. A collectionGroup query, so
+ * it searches every contract's versions subcollection at once rather than
+ * needing to know which contract to look in ahead of time.
+ */
+export async function findContractsByFileName(
+  fileName: string
+): Promise<{ contractId: string; version: VersionDoc }[]> {
+  const snap = await getDocs(query(collectionGroup(db, 'versions'), where('fileName', '==', fileName)));
+  return snap.docs
+    .filter((d) => d.ref.parent.parent)
+    .map((d) => ({
+      contractId: d.ref.parent.parent!.id,
+      version: { id: d.id, ...(d.data() as Omit<VersionDoc, 'id'>), uploadedAt: toMillis(d.data().uploadedAt) },
+    }));
+}
+
+""" + anchor
+
+    content = content.replace(anchor, addition, 1)
+    with open(path, "w") as f:
+        f.write(content)
+    print("firestore.ts: added findContractsByFileName.")
+PYEOF
+
+# ── 2. IntakeForm.tsx — check on file select, show a warning + link ────────
+
+mkdir -p "$(dirname "src/components/intake/IntakeForm.tsx")"
+cat > "src/components/intake/IntakeForm.tsx" << 'VS_APPLY_EOF_dup1'
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -342,3 +431,52 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+VS_APPLY_EOF_dup1
+
+# ── 3. firestore.indexes.json — add a collection-group index for the new query ─
+#      (single-field equality queries are usually auto-indexed even for
+#      collectionGroup, but Firestore has been known to require this scope to
+#      be explicitly enabled the first time — if you hit a "requires an
+#      index" error the first time you use this feature, it's the same fix as
+#      before: click the link in the error to create it in one click.)
+
+python3 - << 'PYEOF'
+import json
+path = "firestore.indexes.json"
+with open(path) as f:
+    data = json.load(f)
+
+target = {
+    "collectionGroup": "versions",
+    "queryScope": "COLLECTION_GROUP",
+    "fields": [{"fieldPath": "fileName", "order": "ASCENDING"}],
+}
+
+already = any(
+    idx.get("collectionGroup") == "versions"
+    and idx.get("queryScope") == "COLLECTION_GROUP"
+    and idx.get("fields") == target["fields"]
+    for idx in data.get("indexes", [])
+)
+
+if already:
+    print("firestore.indexes.json: fileName index already present — nothing to do.")
+else:
+    data.setdefault("indexes", []).append(target)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    print("firestore.indexes.json: added fileName collection-group index.")
+PYEOF
+
+echo ""
+echo "Done. 3 files patched/updated:"
+echo "  src/lib/firebase/firestore.ts   (added findContractsByFileName)"
+echo "  src/components/intake/IntakeForm.tsx  (duplicate-filename warning + link)"
+echo "  firestore.indexes.json          (index for the new query, just in case)"
+echo ""
+echo "Restart your dev server (Ctrl+C, then npm run dev) and try uploading a"
+echo "file name you've already reviewed before. If you see a 'query requires"
+echo "an index' error in the terminal the first time, click the link it gives"
+echo "you in the Firebase Console to create it (same one-click fix as the"
+echo "earlier Firestore index issue) — after that it won't happen again."

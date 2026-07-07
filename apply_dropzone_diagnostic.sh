@@ -1,3 +1,12 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo:
+#   bash apply_dropzone_diagnostic.sh
+# TEMPORARY — adds console logging so we can see exactly what's firing when
+# the Finder dialog opens twice. Not a fix by itself.
+set -e
+
+mkdir -p "$(dirname "src/components/intake/FileDropzone.tsx")"
+cat > "src/components/intake/FileDropzone.tsx" << 'VS_APPLY_EOF_diag1'
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -93,3 +102,18 @@ export function FileDropzone({
     </>
   );
 }
+VS_APPLY_EOF_diag1
+
+echo ""
+echo "Done. 1 file temporarily instrumented: src/components/intake/FileDropzone.tsx"
+echo ""
+echo "Next steps:"
+echo "  1. Restart your dev server (Ctrl+C, then npm run dev)."
+echo "  2. Open the app in your browser, then open DevTools Console:"
+echo "     - Chrome/Edge: Cmd+Option+J"
+echo "     - Safari: Cmd+Option+C (enable Develop menu first if needed: Safari > Settings > Advanced > Show Develop menu)"
+echo "  3. Click the upload area to trigger the Finder dialog."
+echo "  4. Select your test PDF."
+echo "  5. Copy everything that appears in the Console (from clicking through selecting) and paste it back to me."
+echo ""
+echo "This is temporary instrumentation only — once we find the cause I'll give you a clean fix that removes this logging."

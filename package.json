@@ -19,6 +19,8 @@
     "googleapis": "^140.0.1",
     "pdfjs-dist": "^4.4.168",
     "mammoth": "^1.7.2",
+    "pdf-parse": "^1.1.1",
+    "@react-pdf/renderer": "^3.4.4",
     "clsx": "^2.1.1",
     "nanoid": "^5.0.7"
   },
@@ -34,3 +36,4 @@
     "eslint-config-next": "^14.2.5"
   }
 }
+

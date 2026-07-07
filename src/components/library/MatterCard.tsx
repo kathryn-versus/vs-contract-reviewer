@@ -1,12 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { listVersionsForContract } from '@/lib/firebase/firestore';
 import type { ContractDoc, VersionDoc } from '@/lib/types';
 
-export function MatterCard({ contract, onEdit }: { contract: ContractDoc; onEdit: () => void }) {
+export function MatterCard({
+  contract,
+  onEdit,
+  isGoverningMsa,
+  onToggleGoverningMsa,
+}: {
+  contract: ContractDoc;
+  onEdit: () => void;
+  isGoverningMsa?: boolean;
+  onToggleGoverningMsa?: () => void;
+}) {
   const [versions, setVersions] = useState<VersionDoc[]>([]);
   const [expanded, setExpanded] = useState(false);
 
@@ -29,12 +40,25 @@ export function MatterCard({ contract, onEdit }: { contract: ContractDoc; onEdit
         <div>
           <p className="font-display text-lg text-ink">
             {contract.projectName} <span className="font-mono text-sm text-ink-faint">({contract.projectNumber})</span>
+            {isGoverningMsa && (
+              <span className="ml-2 rounded-full border border-accent/30 bg-high-bg px-2 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-accent">
+                Governing MSA
+              </span>
+            )}
           </p>
           <p className="font-mono text-xs text-ink-faint">
             {contract.docType} · Counterparty: {contract.counterparty}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {onToggleGoverningMsa && contract.docType !== 'SOW' && (
+            <button
+              onClick={onToggleGoverningMsa}
+              className="font-mono text-xs text-ink-faint hover:text-ink"
+            >
+              {isGoverningMsa ? 'Unset as MSA' : 'Set as governing MSA'}
+            </button>
+          )}
           {counts && (
             <div className="flex gap-1">
               {counts.high > 0 && <SeverityBadge severity="high" />}
@@ -53,30 +77,55 @@ export function MatterCard({ contract, onEdit }: { contract: ContractDoc; onEdit
           </button>
         </div>
       </div>
-
       {expanded && (
-        <div className="mt-4 space-y-3 border-t border-rule pt-4">
+        <div className="mt-4 space-y-4 border-t border-rule pt-4">
           {versions.map((v) => (
-            <div key={v.id} className="flex items-center justify-between text-sm">
-              <div>
+            <div key={v.id} className="text-sm">
+              <div className="flex items-center justify-between">
                 <p className="text-ink">v{v.versionNumber} · {v.fileName}</p>
-                <p className="font-mono text-xs text-ink-faint">
-                  {new Date(v.uploadedAt).toLocaleDateString()} · uploaded by {v.uploadedBy.name}
-                </p>
-                {v.deltaFromPrevious && (
-                  <p className="mt-1 font-body text-xs text-ink-soft">Δ {v.deltaFromPrevious}</p>
+                <Link href={`/review/${contract.id}/${v.id}`} className="font-mono text-xs text-accent hover:underline">
+                  View results
+                </Link>
+              </div>
+              <p className="font-mono text-xs text-ink-faint">
+                {new Date(v.uploadedAt).toLocaleDateString()} · uploaded by {v.uploadedBy.name}
+              </p>
+              {v.deltaFromPrevious && (
+                <p className="mt-1 font-body text-xs text-ink-soft">Δ {v.deltaFromPrevious}</p>
+              )}
+              {/* Per-version Drive links — each version keeps its own, so
+                  older versions still link correctly after later versions
+                  are uploaded. */}
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                {v.driveFolderUrl && (
+                  <a href={v.driveFolderUrl} target="_blank" rel="noreferrer" className="font-mono text-xs text-accent hover:underline">
+                    Folder ↗
+                  </a>
+                )}
+                {v.driveUrl && (
+                  <a href={v.driveUrl} target="_blank" rel="noreferrer" className="font-mono text-xs text-accent hover:underline">
+                    Source file ↗
+                  </a>
+                )}
+                {v.googleDocUrl && (
+                  <a href={v.googleDocUrl} target="_blank" rel="noreferrer" className="font-mono text-xs text-accent hover:underline">
+                    Google Doc ↗
+                  </a>
+                )}
+                {v.reportHtmlUrl && (
+                  <a href={v.reportHtmlUrl} target="_blank" rel="noreferrer" className="font-mono text-xs text-accent hover:underline">
+                    HTML report ↗
+                  </a>
+                )}
+                {v.reportPdfUrl && (
+                  <a href={v.reportPdfUrl} target="_blank" rel="noreferrer" className="font-mono text-xs text-accent hover:underline">
+                    PDF report ↗
+                  </a>
+                )}
+                {!v.driveUrl && !v.googleDocUrl && !v.reportHtmlUrl && !v.reportPdfUrl && (
+                  <span className="font-mono text-xs text-ink-faint">No Drive links yet for this version.</span>
                 )}
               </div>
-              {contract.driveUrl && (
-                <a
-                  href={contract.driveUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-mono text-xs text-accent hover:underline"
-                >
-                  Drive ↗
-                </a>
-              )}
             </div>
           ))}
         </div>

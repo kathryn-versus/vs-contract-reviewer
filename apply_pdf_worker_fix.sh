@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo:
+#   bash apply_pdf_worker_fix.sh
+set -e
+
+mkdir -p "$(dirname "src/lib/parsing/extractText.ts")"
+cat > "src/lib/parsing/extractText.ts" << 'VS_APPLY_EOF_pdfworker'
 'use client';
 
 // Client-side text extraction — PDF via pdf.js, DOCX via mammoth.js, per
@@ -48,3 +55,9 @@ async function extractDocxText(file: File): Promise<string> {
   const result = await mammoth.extractRawText({ arrayBuffer: buffer });
   return result.value.trim();
 }
+VS_APPLY_EOF_pdfworker
+
+echo ""
+echo "Done. 1 file updated: src/lib/parsing/extractText.ts"
+echo "No new npm packages needed — restart your dev server (Ctrl+C, then npm run dev) and try uploading the PDF again."
+echo "Note: this now loads the pdf.js worker from unpkg.com at runtime, so it needs normal internet access (fine for local dev and once deployed)."

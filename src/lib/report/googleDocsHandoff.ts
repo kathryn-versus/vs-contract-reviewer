@@ -1,18 +1,19 @@
-// brief §4.1 "Google Docs Handoff": encode redline content into a
-// docs.google.com/document/create URL; for long content, fall back to
-// clipboard copy + open a blank doc with instructions.
-
-const URL_LENGTH_SAFE_LIMIT = 1800; // conservative — browsers cap ~2000 chars for GET URLs
-
-export async function openInGoogleDocs(title: string, body: string) {
-  const encoded = `https://docs.google.com/document/create?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-
-  if (encoded.length <= URL_LENGTH_SAFE_LIMIT) {
-    window.open(encoded, '_blank', 'noopener,noreferrer');
-    return { mode: 'url' as const };
-  }
-
-  await navigator.clipboard.writeText(body);
-  window.open('https://docs.google.com/document/create', '_blank', 'noopener,noreferrer');
-  return { mode: 'clipboard' as const };
+// "Open in Google Docs" duplicates the full source contract (not just
+// drafted redlines) into a native Google Doc saved in the matter's Drive
+// folder, via /api/drive/duplicate-to-docs. Requires the contract to already
+// have a driveFileId + driveFolderId (i.e. the Drive upload step succeeded).
+export async function duplicateContractToGoogleDocs(params: {
+  fileId: string;
+  folderId: string;
+  name: string;
+}): Promise<{ docId: string; docUrl: string }> {
+  const res = await fetch('/api/drive/duplicate-to-docs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  window.open(data.docUrl, '_blank', 'noopener,noreferrer');
+  return { docId: data.docId, docUrl: data.docUrl };
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureMatterFolder, uploadFileToFolder, getFolderLink } from '@/lib/drive/client';
+import { ensureMatterFolder, ensureDatedReviewFolder, uploadFileToFolder, getFolderLink } from '@/lib/drive/client';
 
 // Server-side only (brief §7: "All Drive API calls go through Next.js API
 // routes — never direct from browser"). Accepts multipart form data with the
@@ -21,25 +21,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const projectLabel = `${projectName} (${projectNumber})`;
+    // Job Number first, then Project Name (e.g. "VS26153 — Eversana DSE
+    // Animation") — matches how the studio refers to jobs internally.
+    const projectLabel = `${projectNumber} — ${projectName}`;
     const { matterFolderId } = await ensureMatterFolder(clientName, projectLabel);
+    // Nest this review's files under a dated subfolder — Contract
+    // Reviews/{Client}/{Job Number — Project}/{YYYY-MM-DD}/ — so the source
+    // file, its Google Doc duplicate, and the report copy all land together.
+    const dateFolderId = await ensureDatedReviewFolder(matterFolderId);
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = versionSuffix ? appendSuffix(file.name, versionSuffix) : file.name;
 
     const { fileId, webViewLink } = await uploadFileToFolder({
-      folderId: matterFolderId,
+      folderId: dateFolderId,
       fileName,
       mimeType: file.type || 'application/octet-stream',
       buffer,
     });
 
-    const driveFolderUrl = await getFolderLink(matterFolderId);
+    const driveFolderUrl = await getFolderLink(dateFolderId);
 
     return NextResponse.json({
       driveFileId: fileId,
       driveUrl: webViewLink,
       driveFolderUrl,
+      driveFolderId: dateFolderId,
     });
   } catch (err) {
     console.error('drive/upload failed', err);

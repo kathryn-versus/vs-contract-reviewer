@@ -41,6 +41,7 @@ export interface ContractDoc {
   driveFileId: string | null;
   driveUrl: string | null;
   driveFolderUrl: string | null;
+  driveFolderId: string | null;
   createdAt: number;
   latestVersionId: string | null;
 }
@@ -57,6 +58,10 @@ export interface Finding {
   location: string;
   analysis: string;
   recommendation: string;
+  // Set once a redline is drafted for this finding and persisted back to the
+  // version doc — lets a past review be reopened with its drafted redlines
+  // intact instead of needing them redrafted from scratch.
+  redlineText?: string;
 }
 
 export interface VersionDoc {
@@ -68,7 +73,19 @@ export interface VersionDoc {
   characterCount: number;
   findings: Finding[];
   deltaFromPrevious: string | null;
-  reportUrl: string | null;
+  // Per-version Drive links — kept on each version (not just the top-level
+  // ContractDoc) so version history survives later uploads instead of being
+  // silently overwritten by the next version's links. Populated once the
+  // Drive upload / Google Doc duplication / report uploads for THIS version
+  // succeed; null until then.
+  driveFileId: string | null;
+  driveUrl: string | null;
+  driveFolderId: string | null;
+  driveFolderUrl: string | null;
+  googleDocId: string | null;
+  googleDocUrl: string | null;
+  reportHtmlUrl: string | null;
+  reportPdfUrl: string | null;
 }
 
 export interface ThreadMessage {
@@ -82,14 +99,16 @@ export interface IssueThreadDoc {
   messages: ThreadMessage[];
 }
 
-// The eight standing concerns — brief §5.
+// The standing concerns — brief §5, plus additions since. Count is not fixed
+// at eight anymore, so nothing downstream should hardcode a number; use
+// STANDING_CONCERNS.length wherever a count needs to be displayed.
 export interface Concern {
   id: number;
   label: string;
   description: string;
 }
 
-export const EIGHT_CONCERNS: Concern[] = [
+export const STANDING_CONCERNS: Concern[] = [
   {
     id: 1,
     label: 'Mutual termination for convenience',
@@ -138,7 +157,28 @@ export const EIGHT_CONCERNS: Concern[] = [
     description:
       'SOWs should include a defined cancellation fee structure tied to notice period or production stage.',
   },
+  {
+    id: 9,
+    label: 'Standard payment terms',
+    description:
+      "Versus's standard payment terms depend on production type. Post-production/post work: 1st payment 50% NET 5 upon award of the SOW; 2nd payment 50% NET 30 following receipt of deliverables. Live-action production (per standard AICP Payment Guidelines): first payment of 75% of the contract price, due upon signing of the contract but not later than 5 business days prior to the first shoot day — due whether or not a written contract/PO/letter of agreement is in hand, since a verbal order to commence production is enough to trigger it; second payment of 25% of the contract price (plus all additional approved and invoiced overages) due upon approval of dailies but not later than airing of the commercial or 30 days from the date of the final invoice, whichever is sooner — the firm-bid portion of a cost-plus job is paid on this schedule regardless of whether the cost-plus items have been actualized yet, and cost-plus invoices are separately due within 30 days of invoice. Determine which structure applies from the nature of the deliverables/scope described in the document (post/edit/sound/animation work vs. a live-action shoot), then flag any payment schedule that requires more up-front risk from Versus than these terms, defers payment materially longer, ties payment to a condition Versus doesn't control without a fallback deadline (e.g., an undefined 'client approval' with no outside date), or omits a clear payment schedule entirely.",
+  },
 ];
+
+// Condensed labels for the always-visible concern index strip (on-screen and
+// in exported reports) — short enough to fit all of them on one line, unlike
+// the full concern descriptions above.
+export const CONCERN_SHORT_LABELS: Record<number, string> = {
+  1: 'Mutual termination',
+  2: 'Cure period',
+  3: 'Indemnification scope',
+  4: 'Cap applies to indemnity',
+  5: 'Freelancers/subs',
+  6: 'AI tool use',
+  7: 'Portfolio/awards',
+  8: 'Kill fee structure',
+  9: 'Payment terms',
+};
 
 export const SEVERITY_LABELS: Record<Severity, string> = {
   high: 'Significantly one-sided or high financial/legal exposure — must negotiate',

@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Run this from the root of your vs-contract-reviewer repo:
+#   bash apply_json_parse_fix.sh
+set -e
+
+mkdir -p "$(dirname "src/lib/claude/client.ts")"
+cat > "src/lib/claude/client.ts" << 'VS_APPLY_EOF_jsonfix'
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -53,3 +60,8 @@ export function parseJsonResponse<T>(text: string): T {
 
   return JSON.parse(trimmed) as T;
 }
+VS_APPLY_EOF_jsonfix
+
+echo ""
+echo "Done. 1 file updated: src/lib/claude/client.ts"
+echo "No new npm packages needed — restart your dev server (Ctrl+C, then npm run dev) and try the review again."

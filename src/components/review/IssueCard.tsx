@@ -13,6 +13,7 @@ const borderColor: Record<Finding['severity'], string> = {
 };
 
 export function IssueCard({
+  index,
   finding,
   selected,
   onToggleSelect,
@@ -21,6 +22,7 @@ export function IssueCard({
   onPersistThread,
   redlineText,
 }: {
+  index: number;
   finding: Finding;
   selected: boolean;
   onToggleSelect: () => void;
@@ -29,12 +31,13 @@ export function IssueCard({
   onPersistThread: (messages: ThreadMessage[]) => void;
   redlineText?: string | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
 
   return (
     <div className={clsx('rounded-sm border border-rule border-l-4 bg-paper', borderColor[finding.severity])}>
       <div className="flex items-start gap-3 p-4">
+        <span className="mt-0.5 font-mono text-xs text-ink-faint">{String(index + 1).padStart(2, '0')}</span>
         <input
           type="checkbox"
           checked={selected}
@@ -43,25 +46,29 @@ export function IssueCard({
           aria-label="Select for redline"
         />
         <button className="flex-1 text-left" onClick={() => setExpanded((v) => !v)}>
-          <div className="flex flex-wrap items-center gap-2">
-            <SeverityBadge severity={finding.severity} />
-            <span className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">
-              {finding.concernLabel}
-            </span>
-          </div>
+          <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">
+            Concern {finding.concernId} · {finding.concernLabel}
+          </p>
           <p className="mt-1.5 font-display text-base text-ink">{finding.issueTitle}</p>
           {finding.location && (
             <p className="mt-0.5 font-mono text-xs text-ink-faint">{finding.location}</p>
           )}
         </button>
-        <span className="mt-1 font-mono text-xs text-ink-faint">{expanded ? '−' : '+'}</span>
+        <SeverityBadge severity={finding.severity} />
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+          className="mt-0.5 font-mono text-xs text-ink-faint hover:text-ink"
+        >
+          {expanded ? '▲' : '▼'}
+        </button>
       </div>
 
       {expanded && (
         <div className="space-y-4 border-t border-rule px-4 pb-4 pt-4">
           <div>
             <p className="mb-1 font-mono text-[11px] uppercase tracking-wide text-ink-faint">
-              Verbatim clause
+              Contract language
             </p>
             <blockquote className="border-l-2 border-rule pl-3 font-body text-sm italic text-ink-soft">
               “{finding.quote}”
@@ -75,7 +82,7 @@ export function IssueCard({
           </div>
           <div>
             <p className="mb-1 font-mono text-[11px] uppercase tracking-wide text-ink-faint">
-              Negotiation direction
+              Suggested negotiation direction
             </p>
             <p className="font-body text-sm text-ink">{finding.recommendation}</p>
           </div>
@@ -111,3 +118,4 @@ export function IssueCard({
     </div>
   );
 }
+

@@ -1,0 +1,478 @@
+----- src/app/library/[clientId]/page.tsx -----
+'use client';
+
+import { AuthGuard } from '@/components/layout/AuthGuard';
+import { AppShell } from '@/components/layout/AppShell';
+import { ClientDetailView } from '@/components/library/ClientDetailView';
+
+export default function ClientDetailPage({ params }: { params: { clientId: string } }) {
+  return (
+    <AuthGuard requireRole="admin">
+      <AppShell>
+        <ClientDetailView clientId={params.clientId} />
+      </AppShell>
+    </AuthGuard>
+  );
+}
+
+
+----- src/app/library/page.tsx -----
+'use client';
+
+import { AuthGuard } from '@/components/layout/AuthGuard';
+import { AppShell } from '@/components/layout/AppShell';
+import { ClientListView } from '@/components/library/ClientListView';
+
+export default function LibraryPage() {
+  return (
+    <AuthGuard requireRole="admin">
+      <AppShell>
+        <ClientListView />
+      </AppShell>
+    </AuthGuard>
+  );
+}
+
+
+----- src/components/library/ClientDetailView.tsx -----
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { MatterCard } from './MatterCard';
+import {
+  getClient,
+  listContractsForClient,
+  updateClientNotes,
+  moveContract,
+  listClients,
+  setGoverningMsa,
+  clearGoverningMsa,
+} from '@/lib/firebase/firestore';
+import type { ClientDoc, ContractDoc } from '@/lib/types';
+
+export function ClientDetailView({ clientId }: { clientId: string }) {
+  const [client, setClient] = useState<ClientDoc | null>(null);
+  const [contracts, setContracts] = useState<ContractDoc[]>([]);
+  const [allClients, setAllClients] = useState<ClientDoc[]>([]);
+  const [notes, setNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [editing, setEditing] = useState<ContractDoc | null>(null);
+
+  useEffect(() => {
+    getClient(clientId).then((c) => {
+      setClient(c);
+      setNotes(c?.notes ?? '');
+    });
+    listContractsForClient(clientId).then(setContracts);
+    listClients().then(setAllClients);
+  }, [clientId]);
+
+  if (!client) {
+    return <p className="font-mono text-sm text-ink-faint">Loading client…</p>;
+  }
+
+  const msaContract = contracts.find((c) => c.id === client.msaContractId);
+
+  async function saveNotes() {
+    setSavingNotes(true);
+    try {
+      await updateClientNotes(clientId, notes);
+    } finally {
+      setSavingNotes(false);
+    }
+  }
+
+  async function handleReassign(contractId: string, newClientId: string, newProjectName: string) {
+    const target = allClients.find((c) => c.id === newClientId);
+    if (!target) return;
+    await moveContract(contractId, { clientId: target.id, clientName: target.name, projectName: newProjectName });
+    setEditing(null);
+    listContractsForClient(clientId).then(setContracts);
+  }
+
+  async function handleToggleGoverningMsa(contractId: string) {
+    if (client.msaContractId === contractId) {
+      await clearGoverningMsa(clientId);
+    } else {
+      await setGoverningMsa(clientId, contractId);
+    }
+    getClient(clientId).then(setClient);
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-display text-2xl text-ink">{client.name}</h1>
+        <p className="font-mono text-xs text-ink-faint">{contracts.length} matters on file</p>
+      </div>
+
+      {msaContract && (
+        <Card className="border-l-4 border-l-accent p-5">
+          <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">Governing MSA</p>
+          <p className="mt-1 font-display text-base text-ink">
+            {msaContract.projectName} ({msaContract.projectNumber})
+          </p>
+          <p className="mt-2 font-body text-sm text-ink-soft">
+            Its text is automatically pulled from Drive and given to Claude as context on every
+            future SOW review for {client.name} — no manual setup needed per review.
+          </p>
+        </Card>
+      )}
+
+      <Card className="p-5">
+        <p className="mb-2 font-mono text-[11px] uppercase tracking-wide text-ink-faint">
+          Client notes — fed to Claude as context on future reviews
+        </p>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder='e.g. "Disney: AI clause non-negotiable per WDA amendment, do not flag as high"'
+          className="w-full border border-rule bg-paper p-3 font-body text-sm outline-none focus:border-ink"
+        />
+        <div className="mt-2 flex justify-end">
+          <Button variant="primary" onClick={saveNotes} disabled={savingNotes}>
+            {savingNotes ? 'Saving…' : 'Save notes'}
+          </Button>
+        </div>
+      </Card>
+
+      <div className="space-y-3">
+        <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">Matters</p>
+        {contracts.map((c) => (
+          <MatterCard
+            key={c.id}
+            contract={c}
+            onEdit={() => setEditing(c)}
+            isGoverningMsa={client.msaContractId === c.id}
+            onToggleGoverningMsa={() => handleToggleGoverningMsa(c.id)}
+          />
+        ))}
+        {contracts.length === 0 && (
+          <p className="py-8 text-center font-mono text-sm text-ink-faint">No matters yet.</p>
+        )}
+      </div>
+
+      {editing && (
+        <EditMatterModal
+          contract={editing}
+          clients={allClients}
+          onClose={() => setEditing(null)}
+          onSave={handleReassign}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditMatterModal({
+  contract,
+  clients,
+  onClose,
+  onSave,
+}: {
+  contract: ContractDoc;
+  clients: ClientDoc[];
+  onClose: () => void;
+  onSave: (contractId: string, newClientId: string, newProjectName: string) => void;
+}) {
+  const [clientId, setClientId] = useState(contract.clientId);
+  const [projectName, setProjectName] = useState(contract.projectName);
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/30 p-6">
+      <Card className="w-full max-w-md p-6">
+        <h3 className="font-display text-lg text-ink">Edit matter</h3>
+        <div className="mt-4 space-y-4">
+          <label className="block">
+            <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">Client</span>
+            <select
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className="w-full border border-rule px-3 py-2 text-sm"
+            >
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">Project name</span>
+            <input
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              className="w-full border border-rule px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={() => onSave(contract.id, clientId, projectName)}>
+            Save & move Drive folder
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+
+
+----- src/components/library/ClientListView.tsx -----
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { subscribeClients, getOrCreateClient } from '@/lib/firebase/firestore';
+import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/hooks/useAuth';
+import type { ClientDoc, ContractDoc } from '@/lib/types';
+
+export function ClientListView() {
+  const { user } = useAuth();
+  const [clients, setClients] = useState<ClientDoc[]>([]);
+  const [contractsByClient, setContractsByClient] = useState<Record<string, ContractDoc[]>>({});
+  const [search, setSearch] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+
+  useEffect(() => subscribeClients(setClients), []);
+
+  // Fetch all contracts once and group client-side (small dataset expected).
+  useEffect(() => {
+    (async () => {
+      const { collection, getDocs: gd } = await import('firebase/firestore');
+      const snap = await gd(collection(db, 'contracts'));
+      const grouped: Record<string, ContractDoc[]> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data() as Omit<ContractDoc, 'id'>;
+        const c: ContractDoc = { id: d.id, ...data, createdAt: Date.now() };
+        grouped[c.clientId] = grouped[c.clientId] || [];
+        grouped[c.clientId].push(c);
+      });
+      setContractsByClient(grouped);
+    })().catch(() => {});
+  }, []);
+
+  const filtered = useMemo(
+    () => clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
+    [clients, search]
+  );
+
+  async function handleNewClient() {
+    if (!newName.trim() || !user?.email) return;
+    await getOrCreateClient(newName.trim(), user.email);
+    setNewName('');
+    setAdding(false);
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="font-display text-2xl text-ink">Client Library</h1>
+        <Button variant="primary" onClick={() => setAdding((v) => !v)}>
+          + New Client
+        </Button>
+      </div>
+
+      {adding && (
+        <Card className="mb-6 flex items-center gap-2 p-4">
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Client name"
+            className="flex-1 border border-rule px-3 py-1.5 text-sm outline-none focus:border-ink"
+            onKeyDown={(e) => e.key === 'Enter' && handleNewClient()}
+          />
+          <Button variant="primary" onClick={handleNewClient}>Create</Button>
+        </Card>
+      )}
+
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search clients…"
+        className="mb-4 w-full border border-rule px-3 py-2 text-sm outline-none focus:border-ink"
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((client) => {
+          const matters = contractsByClient[client.id] ?? [];
+          const mostRecent = matters[0]?.createdAt;
+          return (
+            <Link key={client.id} href={`/library/${client.id}`}>
+              <Card className="p-4 transition hover:border-ink">
+                <p className="font-display text-lg text-ink">{client.name}</p>
+                <p className="mt-1 font-mono text-xs text-ink-faint">
+                  {matters.length} matter{matters.length === 1 ? '' : 's'}
+                </p>
+                <p className="mt-1 font-mono text-xs text-ink-faint">
+                  {mostRecent ? `Last upload ${new Date(mostRecent).toLocaleDateString()}` : 'No uploads yet'}
+                </p>
+                <p className="mt-2 font-mono text-[11px] uppercase tracking-wide">
+                  {client.msaContractId ? (
+                    <span className="text-low">MSA on file</span>
+                  ) : (
+                    <span className="text-med">MSA missing</span>
+                  )}
+                </p>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+----- src/components/library/MatterCard.tsx -----
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Card } from '@/components/ui/Card';
+import { SeverityBadge } from '@/components/ui/SeverityBadge';
+import { listVersionsForContract } from '@/lib/firebase/firestore';
+import type { ContractDoc, VersionDoc } from '@/lib/types';
+
+export function MatterCard({
+  contract,
+  onEdit,
+  isGoverningMsa,
+  onToggleGoverningMsa,
+}: {
+  contract: ContractDoc;
+  onEdit: () => void;
+  isGoverningMsa?: boolean;
+  onToggleGoverningMsa?: () => void;
+}) {
+  const [versions, setVersions] = useState<VersionDoc[]>([]);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    listVersionsForContract(contract.id).then(setVersions).catch(() => {});
+  }, [contract.id]);
+
+  const latest = versions[0];
+  const counts = latest
+    ? {
+        high: latest.findings.filter((f) => f.severity === 'high').length,
+        medium: latest.findings.filter((f) => f.severity === 'medium').length,
+        low: latest.findings.filter((f) => f.severity === 'low').length,
+      }
+    : null;
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="font-display text-lg text-ink">
+            {contract.projectName} <span className="font-mono text-sm text-ink-faint">({contract.projectNumber})</span>
+            {isGoverningMsa && (
+              <span className="ml-2 rounded-full border border-accent/30 bg-high-bg px-2 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-accent">
+                Governing MSA
+              </span>
+            )}
+          </p>
+          <p className="font-mono text-xs text-ink-faint">
+            {contract.docType} · Counterparty: {contract.counterparty}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {onToggleGoverningMsa && contract.docType !== 'SOW' && (
+            <button
+              onClick={onToggleGoverningMsa}
+              className="font-mono text-xs text-ink-faint hover:text-ink"
+            >
+              {isGoverningMsa ? 'Unset as MSA' : 'Set as governing MSA'}
+            </button>
+          )}
+          {counts && (
+            <div className="flex gap-1">
+              {counts.high > 0 && <SeverityBadge severity="high" />}
+              {counts.medium > 0 && <SeverityBadge severity="medium" />}
+              {counts.low > 0 && <SeverityBadge severity="low" />}
+            </div>
+          )}
+          <button onClick={onEdit} className="font-mono text-xs text-ink-faint hover:text-ink">
+            Edit
+          </button>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="font-mono text-xs text-ink-faint hover:text-ink"
+          >
+            {expanded ? 'Hide versions' : `${versions.length} version${versions.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="mt-4 space-y-3 border-t border-rule pt-4">
+          {versions.map((v) => (
+            <div key={v.id} className="flex items-center justify-between text-sm">
+              <div>
+                <p className="text-ink">v{v.versionNumber} · {v.fileName}</p>
+                <p className="font-mono text-xs text-ink-faint">
+                  {new Date(v.uploadedAt).toLocaleDateString()} · uploaded by {v.uploadedBy.name}
+                </p>
+                {v.deltaFromPrevious && (
+                  <p className="mt-1 font-body text-xs text-ink-soft">Δ {v.deltaFromPrevious}</p>
+                )}
+              </div>
+              {contract.driveUrl && (
+                <a
+                  href={contract.driveUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-xs text-accent hover:underline"
+                >
+                  Drive ↗
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+
+----- src/app/api/drive/duplicate-to-docs/route.ts -----
+import { NextRequest, NextResponse } from 'next/server';
+import { duplicateAsGoogleDoc } from '@/lib/drive/client';
+
+// "Open in Google Docs" — duplicates the source contract file (already in
+// Drive from the original upload) into a native Google Doc saved in the same
+// matter folder, so the reviewer gets a fully editable copy of the whole
+// contract rather than just the drafted redline excerpts.
+export async function POST(req: NextRequest) {
+  try {
+    const { fileId, folderId, name } = await req.json();
+    if (!fileId || !folderId) {
+      return NextResponse.json({ error: 'fileId and folderId are required.' }, { status: 400 });
+    }
+
+    const { docId, docUrl } = await duplicateAsGoogleDoc({
+      fileId,
+      folderId,
+      name: name || 'Contract copy',
+    });
+
+    return NextResponse.json({ docId, docUrl });
+  } catch (err) {
+    console.error('drive/duplicate-to-docs failed', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Could not duplicate into Google Docs.' },
+      { status: 500 }
+    );
+  }
+}
+
+
+

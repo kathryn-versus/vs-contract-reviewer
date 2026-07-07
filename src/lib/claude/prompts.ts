@@ -1,10 +1,11 @@
-import { EIGHT_CONCERNS, type DocType } from '@/lib/types';
+import { STANDING_CONCERNS, type DocType } from '@/lib/types';
 
 export interface AnalysisPromptInput {
   docType: DocType;
   counterparty: string;
   clientName: string;
   clientNotes?: string | null;
+  msaContext?: string | null;
   documentText: string; // truncated to 100,000 chars by the caller
 }
 
@@ -14,12 +15,12 @@ const STUDIO_IDENTITY =
   'of the studio, flagging terms that create outsized risk or diverge from the ' +
   "studio's standing negotiation positions.";
 
-const CONCERNS_BLOCK = EIGHT_CONCERNS.map(
+const CONCERNS_BLOCK = STANDING_CONCERNS.map(
   (c) => `${c.id}. ${c.label} — ${c.description}`
 ).join('\n');
 
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
-  const { docType, counterparty, clientName, clientNotes, documentText } = input;
+  const { docType, counterparty, clientName, clientNotes, msaContext, documentText } = input;
 
   return `${STUDIO_IDENTITY}
 
@@ -32,11 +33,15 @@ ${
   clientNotes
     ? `CLIENT-SPECIFIC STANDING NOTES (treat as authoritative context for this client — e.g. a note that a clause is non-negotiable means do not flag it as an issue even if it would normally concern you):\n${clientNotes}\n`
     : ''
+}${
+  msaContext
+    ? `GOVERNING MSA (excerpt, pulled automatically from this client's Drive folder — use it to understand what's already been negotiated at the master-agreement level; a SOW that simply incorporates MSA terms is not itself an issue):\n"""\n${msaContext}\n"""\n`
+    : ''
 }
-THE EIGHT STANDING CONCERNS
-Assess the document against exactly these eight concerns. Only return concerns
-where you find an actual issue in the text — omit any concern the document
-already handles acceptably.
+THE STANDING CONCERNS
+Assess the document against exactly these ${STANDING_CONCERNS.length} concerns. Only return
+concerns where you find an actual issue in the text — omit any concern the
+document already handles acceptably.
 
 ${CONCERNS_BLOCK}
 
@@ -55,7 +60,7 @@ RESPONSE FORMAT
 Return a JSON array only — no markdown code fences, no commentary before or
 after. Each element:
 {
-  "concernId": number (1-8),
+  "concernId": number (1-${STANDING_CONCERNS.length}),
   "concernLabel": string,
   "severity": "high" | "medium" | "low",
   "issueTitle": string,
