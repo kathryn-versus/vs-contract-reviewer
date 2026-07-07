@@ -78,8 +78,19 @@ export function FileDropzone({
           setDragging(false);
           handleFiles(e.dataTransfer.files);
         }}
-        onClick={() => {
-          console.count('[dropzone] div onClick fired');
+        onClick={(e) => {
+          // TEMP DIAGNOSTIC — logs whether each firing is a real physical
+          // click (isTrusted: true) or code calling .click() programmatically
+          // (isTrusted: false), plus the full call stack so we can see what
+          // triggered it.
+          console.log(
+            '[dropzone] div onClick fired — isTrusted:',
+            e.isTrusted,
+            'target:',
+            (e.target as HTMLElement)?.tagName,
+            (e.target as HTMLElement)?.className
+          );
+          console.trace('[dropzone] call stack');
           inputRef.current?.click();
         }}
         className={clsx(
