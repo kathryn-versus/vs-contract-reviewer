@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { AppShell } from '@/components/layout/AppShell';
@@ -22,7 +23,7 @@ import {
 import { STANDING_CONCERNS } from '@/lib/types';
 import type { Finding, DocType } from '@/lib/types';
 
-type Step = 'intake' | 'loading' | 'results' | 'error';
+type Step = 'intake' | 'loading' | 'results' | 'filed' | 'error';
 
 export default function ReviewerPage() {
   return (
@@ -61,6 +62,13 @@ function ReviewerFlow() {
     driveFileId: string | null;
     driveFolderId: string | null;
   } | null>(null);
+  const [filedInfo, setFiledInfo] = useState<{
+    clientId: string;
+    clientName: string;
+    projectName: string;
+    projectNumber: string;
+    driveFolderUrl: string | null;
+  } | null>(null);
 
   if (!user) return null;
 
@@ -72,23 +80,26 @@ function ReviewerFlow() {
       const client = await getOrCreateClient(values.clientName, user!.email ?? '');
       const clientDoc = await getClient(client.id);
 
-      // 2. Run the standing-concerns analysis. Passing clientId lets the server
-      //    auto-pull the client's governing MSA from Drive as extra context.
-      const analyzeRes = await fetch('/api/review/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          docType: values.docType,
-          counterparty: values.counterparty,
-          clientName: values.clientName,
-          clientId: client.id,
-          clientNotes: clientDoc?.notes || null,
-          documentText: values.documentText,
-        }),
-      });
-      const analyzeData = await analyzeRes.json();
-      if (analyzeData.error) throw new Error(analyzeData.error);
-      const newFindings: Finding[] = analyzeData.findings;
+      // 2. Run the standing-concerns analysis — skipped entirely when
+      //    filing for reference only, since nothing needs to go to Claude.
+      let newFindings: Finding[] = [];
+      if (!values.skipReview) {
+        const analyzeRes = await fetch('/api/review/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            docType: values.docType,
+            counterparty: values.counterparty,
+            clientName: values.clientName,
+            clientId: client.id,
+            clientNotes: clientDoc?.notes || null,
+            documentText: values.documentText,
+          }),
+        });
+        const analyzeData = await analyzeRes.json();
+        if (analyzeData.error) throw new Error(analyzeData.error);
+        newFindings = analyzeData.findings;
+      }
 
       // 3. Attach to the existing matter if one was picked, otherwise create
       //    a new contract + first version record in Firestore.
@@ -117,6 +128,7 @@ function ReviewerFlow() {
         characterCount: values.characterCount,
         findings: newFindings,
         deltaFromPrevious: null,
+        reviewed: !values.skipReview,
         // Populated below once the Drive upload (and later, Google Docs /
         // report actions from the results screen) succeed.
         driveFileId: null,
@@ -138,6 +150,7 @@ function ReviewerFlow() {
       //    not just whichever was uploaded most recently).
       let driveFileId: string | null = null;
       let driveFolderId: string | null = null;
+      let driveFolderUrl: string | null = null;
       try {
         const form = new FormData();
         form.append('file', values.file);
@@ -157,9 +170,25 @@ function ReviewerFlow() {
           });
           driveFileId = driveData.driveFileId ?? null;
           driveFolderId = driveData.driveFolderId ?? null;
+          driveFolderUrl = driveData.driveFolderUrl ?? null;
         }
       } catch {
         // Drive failures shouldn't block the reviewer from seeing results.
+      }
+
+      if (values.skipReview) {
+        // No analysis ran, so skip the severity-counts email too — it would
+        // otherwise misleadingly read as "0 issues found" rather than "not
+        // reviewed at all".
+        setFiledInfo({
+          clientId: client.id,
+          clientName: client.name,
+          projectName: values.projectName,
+          projectNumber: values.projectNumber,
+          driveFolderUrl,
+        });
+        setStep('filed');
+        return;
       }
 
       // 5. Fire the email notification (recipients controlled server-side by env vars).
@@ -219,6 +248,31 @@ function ReviewerFlow() {
       <div className="mx-auto max-w-lg py-16 text-center">
         <p className="mb-4 text-sm text-high">{error}</p>
         <Button onClick={() => setStep('intake')}>Try again</Button>
+      </div>
+    );
+  }
+
+  if (step === 'filed' && filedInfo) {
+    return (
+      <div className="mx-auto max-w-lg py-16 text-center">
+        <h1 className="font-display text-2xl text-ink">Filed for reference</h1>
+        <p className="mt-3 font-body text-sm text-ink-soft">
+          {filedInfo.projectName} ({filedInfo.projectNumber}) was saved to Drive and filed under{' '}
+          {filedInfo.clientName} — no Claude review was run.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {filedInfo.driveFolderUrl && (
+            <a href={filedInfo.driveFolderUrl} target="_blank" rel="noopener noreferrer">
+              <Button variant="ghost">Open in Drive</Button>
+            </a>
+          )}
+          <Link href={`/library/${filedInfo.clientId}`}>
+            <Button variant="ghost">View client</Button>
+          </Link>
+          <Button variant="primary" onClick={() => setStep('intake')}>
+            + Add another
+          </Button>
+        </div>
       </div>
     );
   }

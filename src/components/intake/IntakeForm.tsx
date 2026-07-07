@@ -25,6 +25,10 @@ export interface IntakeValues {
    * new one — the upload should attach as a new version of this contract
    * rather than creating a fresh one. */
   existingContractId?: string;
+  /** When true, skips Claude analysis entirely — just files the contract to
+   * Drive and tracks it as a matter for reference (e.g. an already-executed
+   * contract, an amendment, an insurance cert). */
+  skipReview: boolean;
 }
 
 const DOC_TYPES: DocType[] = ['MSA', 'SOW', 'MSA+SOW', 'Other'];
@@ -62,6 +66,7 @@ export function IntakeForm({
   const [characterCount, setCharacterCount] = useState<number | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [skipReview, setSkipReview] = useState(false);
 
   // Job picker state: either searching, attached to an existing matter, or
   // filling in the two fields for a brand-new one.
@@ -157,16 +162,43 @@ export function IntakeForm({
     projectNumber.trim() &&
     counterparty.trim() &&
     file &&
-    characterCount &&
+    // A "file for reference" upload doesn't need text extraction to have
+    // succeeded — nothing is fed to Claude, so a scanned/unparsable PDF can
+    // still be filed. A normal review still requires extracted text.
+    (skipReview || characterCount) &&
     (selectedContractId || creatingNewJob);
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-8 text-center">
+      <div className="mb-6 text-center">
         <h1 className="font-display text-3xl text-ink">Submit a contract for review</h1>
         <p className="mt-2 font-body text-sm text-ink-soft">
-          The {STANDING_CONCERNS.length} standing concerns will be checked automatically.
+          {skipReview
+            ? 'This will be saved to Drive and filed under the client for reference — no automatic review will run.'
+            : `The ${STANDING_CONCERNS.length} standing concerns will be checked automatically.`}
         </p>
+      </div>
+      <div className="mb-6 flex justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSkipReview(false)}
+          className={
+            'rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wide transition ' +
+            (!skipReview ? 'border-ink bg-ink text-paper' : 'border-rule text-ink-faint hover:border-ink-faint')
+          }
+        >
+          Run Claude review
+        </button>
+        <button
+          type="button"
+          onClick={() => setSkipReview(true)}
+          className={
+            'rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wide transition ' +
+            (skipReview ? 'border-ink bg-ink text-paper' : 'border-rule text-ink-faint hover:border-ink-faint')
+          }
+        >
+          File for reference (no review)
+        </button>
       </div>
       <div className="mb-6 flex justify-center">
         <Chip>
@@ -271,7 +303,12 @@ export function IntakeForm({
               setDuplicateMatches([]);
             }}
           />
-          {parseError && <p className="mt-2 text-sm text-high">{parseError}</p>}
+          {parseError && (
+            <p className="mt-2 text-sm text-high">
+              {parseError}
+              {skipReview && ' — filing without review doesn\'t need the text extracted, so you can still submit.'}
+            </p>
+          )}
           {duplicateMatches.length > 0 && (
             <div className="mt-2 rounded-sm border border-med bg-med-bg/40 p-3">
               <p className="font-mono text-[11px] uppercase tracking-wide text-med">
@@ -313,10 +350,11 @@ export function IntakeForm({
               documentText,
               characterCount: characterCount ?? 0,
               existingContractId: selectedContractId ?? undefined,
+              skipReview,
             })
           }
         >
-          {submitting ? 'Running review…' : 'Run Review'}
+          {submitting ? (skipReview ? 'Filing…' : 'Running review…') : skipReview ? 'File for reference' : 'Run Review'}
         </Button>
       </div>
       <style jsx global>{`

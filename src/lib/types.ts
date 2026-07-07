@@ -102,6 +102,11 @@ export interface VersionDoc {
   googleDocUrl: string | null;
   reportHtmlUrl: string | null;
   reportPdfUrl: string | null;
+  // Undefined/missing is treated as true (reviewed) — every version created
+  // before this field existed went through Claude analysis, so there's no
+  // migration needed for old docs. Only explicitly set to false for matters
+  // filed via "File for reference (no review)".
+  reviewed?: boolean;
 }
 
 export interface ThreadMessage {

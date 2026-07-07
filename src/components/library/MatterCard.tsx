@@ -26,6 +26,9 @@ export function MatterCard({
   }, [contract.id]);
 
   const latest = versions[0];
+  // reviewed is optional — missing/undefined means true (see types.ts), so
+  // only an explicit false marks a matter filed without review.
+  const latestUnreviewed = latest ? latest.reviewed === false : false;
   const counts = latest
     ? {
         high: latest.findings.filter((f) => f.severity === 'high').length,
@@ -59,12 +62,18 @@ export function MatterCard({
               {isGoverningMsa ? 'Unset as MSA' : 'Set as governing MSA'}
             </button>
           )}
-          {counts && (
-            <div className="flex gap-1">
-              {counts.high > 0 && <SeverityBadge severity="high" />}
-              {counts.medium > 0 && <SeverityBadge severity="medium" />}
-              {counts.low > 0 && <SeverityBadge severity="low" />}
-            </div>
+          {latestUnreviewed ? (
+            <span className="rounded-full border border-rule px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              Filed — not reviewed
+            </span>
+          ) : (
+            counts && (
+              <div className="flex gap-1">
+                {counts.high > 0 && <SeverityBadge severity="high" />}
+                {counts.medium > 0 && <SeverityBadge severity="medium" />}
+                {counts.low > 0 && <SeverityBadge severity="low" />}
+              </div>
+            )
           )}
           <button onClick={onEdit} className="font-mono text-xs text-ink-faint hover:text-ink">
             Edit
@@ -83,9 +92,13 @@ export function MatterCard({
             <div key={v.id} className="text-sm">
               <div className="flex items-center justify-between">
                 <p className="text-ink">v{v.versionNumber} · {v.fileName}</p>
-                <Link href={`/review/${contract.id}/${v.id}`} className="font-mono text-xs text-accent hover:underline">
-                  View results
-                </Link>
+                {v.reviewed === false ? (
+                  <span className="font-mono text-xs text-ink-faint">Filed — not reviewed</span>
+                ) : (
+                  <Link href={`/review/${contract.id}/${v.id}`} className="font-mono text-xs text-accent hover:underline">
+                    View results
+                  </Link>
+                )}
               </div>
               <p className="font-mono text-xs text-ink-faint">
                 {new Date(v.uploadedAt).toLocaleDateString()} · uploaded by {v.uploadedBy.name}
