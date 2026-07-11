@@ -73,8 +73,15 @@ INSTRUCTIONS
   - high: significantly one-sided or high financial/legal exposure — must negotiate
   - medium: notable but not severe, or partially addressed — should negotiate
   - low: minor wording issue or low practical risk — nice to have
-- Write a concise "why it matters" analysis and a concrete negotiation
-  recommendation for each issue.
+- issueTitle: a short, specific headline (under ~12 words) — this doubles as
+  the one-line summary in the report's at-a-glance table, so it must stand
+  on its own without the rest of the analysis.
+- analysis ("why it matters"): 2-3 sentences MAXIMUM. State the single
+  biggest practical consequence — do not enumerate every possible angle or
+  every compounding issue. This is read by a producer scanning quickly, not
+  a lawyer writing a memo.
+- recommendation: 1-2 sentences MAXIMUM. One clear, concrete ask — not a
+  menu of options.
 - Note the section/location of the clause if identifiable (e.g. "Section 8.2").
 - Do not invent issues that aren't supported by the text.
 

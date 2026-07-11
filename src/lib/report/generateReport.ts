@@ -33,6 +33,23 @@ export function generateReportHtml(params: {
 
   const { grade, summary } = computeReviewScore(findings);
 
+  const execSummaryHtml = findings.length
+    ? `<div class="exec-summary">
+        <p class="exec-summary-label">At a glance — click any row to jump to full detail</p>
+        <table class="exec-table"><tbody>
+          ${findings
+            .map(
+              (f, i) => `<tr>
+                <td class="exec-num">${String(i + 1).padStart(2, '0')}</td>
+                <td><span class="exec-sev" style="border-color:${SEV_COLOR[f.severity]};background:${SEV_BG[f.severity]};color:${SEV_COLOR[f.severity]};">${f.severity}</span></td>
+                <td class="exec-title"><a href="#issue-${i + 1}">${escapeHtml(f.issueTitle)}</a></td>
+              </tr>`
+            )
+            .join('')}
+        </tbody></table>
+      </div>`
+    : '';
+
   const concernIndexHtml = STANDING_CONCERNS.map(
     (c, i) =>
       `<span style="white-space:nowrap;">${
@@ -43,7 +60,7 @@ export function generateReportHtml(params: {
   const issuesHtml = findings
     .map(
       (f, i) => `
-      <div style="border:1px solid #DEDDD6;border-left:4px solid ${SEV_COLOR[f.severity]};padding:16px;margin-bottom:16px;background:#FAFAF8;">
+      <div id="issue-${i + 1}" style="border:1px solid #DEDDD6;border-left:4px solid ${SEV_COLOR[f.severity]};padding:16px;margin-bottom:16px;background:#FAFAF8;">
         <span style="display:inline-block;font-family:monospace;font-size:11px;color:#8C8A82;margin-right:10px;">${String(i + 1).padStart(2, '0')}</span>
         <span style="display:inline-block;border:1px solid ${SEV_COLOR[f.severity]};background:${SEV_BG[f.severity]};color:${SEV_COLOR[f.severity]};font-family:monospace;font-size:11px;text-transform:uppercase;padding:2px 8px;border-radius:999px;">${f.severity}</span>
         <span style="font-family:monospace;font-size:11px;color:#8C8A82;text-transform:uppercase;margin-left:8px;">Concern ${f.concernId} &middot; ${escapeHtml(f.concernLabel)}</span>
@@ -85,6 +102,14 @@ export function generateReportHtml(params: {
   .summary .n { font-family: 'Oswald', Arial, sans-serif; font-weight:600; font-size: 24px; }
   .summary .l { font-family: monospace; font-size: 10px; text-transform: uppercase; color:#8C8A82; }
   .concern-index { font-family: monospace; font-size: 11px; color: #52514D; border-bottom: 2px solid #141414; padding-bottom: 14px; margin-bottom: 20px; line-height: 1.8; }
+  .exec-summary { margin-bottom: 28px; }
+  .exec-summary-label { font-family: monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #8C8A82; margin-bottom: 8px; }
+  .exec-table { width: 100%; border-collapse: collapse; }
+  .exec-table td { padding: 6px 8px; border-bottom: 1px solid #DEDDD6; font-size: 13px; vertical-align: middle; }
+  .exec-num { font-family: monospace; color: #8C8A82; width: 24px; }
+  .exec-sev { display: inline-block; border: 1px solid; font-family: monospace; font-size: 10px; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; }
+  .exec-title a { color: #141414; text-decoration: none; }
+  .exec-title a:hover { color: #A5730E; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -100,6 +125,7 @@ export function generateReportHtml(params: {
     <span class="grade">${grade}</span>
     <span class="txt">${escapeHtml(summary)}</span>
   </div>
+  ${execSummaryHtml}
   <div class="summary">
     <div><div class="n">${counts.total}</div><div class="l">Total flagged</div></div>
     <div><div class="n">${counts.high}</div><div class="l">High</div></div>

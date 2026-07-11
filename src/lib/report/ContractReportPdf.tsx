@@ -74,6 +74,14 @@ const styles = StyleSheet.create({
   redline: { fontSize: 8.5, fontFamily: 'Courier', backgroundColor: '#E8D9B0', padding: 8, marginTop: 2, lineHeight: 1.4 },
 
   footer: { position: 'absolute', bottom: 20, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7, fontFamily: 'Courier', color: '#8C8A82', borderTopWidth: 1, borderTopColor: '#DEDDD6', paddingTop: 6 },
+
+  execSummary: { marginBottom: 20 },
+  execSummaryLabel: { fontSize: 7.5, fontFamily: 'Courier-Bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#8C8A82', marginBottom: 6 },
+  execRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#DEDDD6', paddingVertical: 5 },
+  execNum: { fontSize: 8, fontFamily: 'Courier', color: '#8C8A82', width: 18 },
+  execSevPill: { borderWidth: 1, borderRadius: 8, paddingVertical: 1, paddingHorizontal: 6, marginRight: 8 },
+  execSevText: { fontSize: 7, fontFamily: 'Courier-Bold', textTransform: 'uppercase' },
+  execTitle: { fontSize: 9, fontFamily: 'Helvetica', flex: 1 },
 });
 
 export function ContractReportPdf({
@@ -128,6 +136,26 @@ export function ContractReportPdf({
           <Text style={[styles.scoreGrade, { color: GRADE_COLOR[grade] }]}>{grade}</Text>
           <Text style={styles.scoreText}>{summary}</Text>
         </View>
+
+        {findings.length > 0 && (
+          <View style={styles.execSummary}>
+            <Text style={styles.execSummaryLabel}>At a glance</Text>
+            {findings.map((f, i) => (
+              <View key={f.uid} style={styles.execRow}>
+                <Text style={styles.execNum}>{String(i + 1).padStart(2, '0')}</Text>
+                <View
+                  style={[
+                    styles.execSevPill,
+                    { borderColor: SEVERITY_COLOR[f.severity], backgroundColor: SEVERITY_BG[f.severity] },
+                  ]}
+                >
+                  <Text style={[styles.execSevText, { color: SEVERITY_COLOR[f.severity] }]}>{f.severity}</Text>
+                </View>
+                <Text style={styles.execTitle}>{f.issueTitle}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryBox}>
