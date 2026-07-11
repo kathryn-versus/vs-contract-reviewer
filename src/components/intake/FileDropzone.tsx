@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Chip } from '@/components/ui/Chip';
 
@@ -25,15 +25,8 @@ export function FileDropzone({
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // TEMP DIAGNOSTIC — remove once the double-picker bug is found.
-  useEffect(() => {
-    console.log('[dropzone] mounted');
-    return () => console.log('[dropzone] UNMOUNTED');
-  }, []);
-
   const handleFiles = useCallback(
     (files: FileList | null) => {
-      console.log('[dropzone] handleFiles called, count:', files?.length, files?.[0]?.name);
       const f = files?.[0];
       if (f) onFile(f);
     },
@@ -68,9 +61,18 @@ export function FileDropzone({
         ref={inputRef}
         type="file"
         accept={accept}
-        className="hidden"
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: 'hidden',
+          clip: 'rect(0,0,0,0)',
+          whiteSpace: 'nowrap',
+          border: 0,
+        }}
         onChange={(e) => {
-          console.log('[dropzone] input onChange fired');
           handleFiles(e.target.files);
         }}
       />
@@ -85,19 +87,7 @@ export function FileDropzone({
           setDragging(false);
           handleFiles(e.dataTransfer.files);
         }}
-        onClick={(e) => {
-          // TEMP DIAGNOSTIC — logs whether each firing is a real physical
-          // click (isTrusted: true) or code calling .click() programmatically
-          // (isTrusted: false), plus the full call stack so we can see what
-          // triggered it.
-          console.log(
-            '[dropzone] div onClick fired — isTrusted:',
-            e.isTrusted,
-            'target:',
-            (e.target as HTMLElement)?.tagName,
-            (e.target as HTMLElement)?.className
-          );
-          console.trace('[dropzone] call stack');
+        onClick={() => {
           inputRef.current?.click();
         }}
         className={clsx(
