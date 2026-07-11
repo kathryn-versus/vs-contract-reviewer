@@ -3,21 +3,37 @@
 @tailwind utilities;
 
 :root {
-  /* Design tokens — brief §9 */
-  --paper: #F7F5F1;
-  --ink: #1C1B19;
-  --ink-soft: #5B574D;
-  --ink-faint: #8C8777;
-  --rule: #D8D3C7;
-  --accent: #8A3324;
-  --accent-soft: #C9B79C;
+  /* Design tokens — refreshed to nod to the Versus brand (weareversus.tv):
+     near-black chrome with a gold accent line, bolder condensed headlines,
+     more saturated severity colors. The main content area stays light
+     rather than going full dark-mode, since this app is used for long
+     stretches of reading dense contract text — a pure black background
+     would hurt legibility there even though it reads great as a hero
+     treatment on a marketing site. */
+  --paper: #FAFAF8;
+  --ink: #141414;
+  --ink-soft: #52514D;
+  --ink-faint: #8C8A82;
+  --rule: #DEDDD6;
+  /* Deliberately darker/more muted than the nav's gold accent below — pure
+     bright gold (#D9A62B) fails contrast as small link/label text on the
+     light --paper background. This shade keeps the gold character while
+     staying readable at font-mono text-xs sizes used throughout. */
+  --accent: #A5730E;
+  --accent-soft: #E8D9B0;
 
-  --high: #8A3324;
-  --high-bg: #F3E4DF;
-  --med: #A8761E;
-  --med-bg: #F4ECDA;
-  --low: #5A6B4F;
-  --low-bg: #E7ECE1;
+  --high: #C0392B;
+  --high-bg: #F7E1DF;
+  --med: #C97A22;
+  --med-bg: #F6E9D5;
+  --low: #3F7D4A;
+  --low-bg: #E3EFE2;
+
+  /* Dark chrome — used ONLY by the top nav, not the main content area. */
+  --chrome-bg: #141414;
+  --chrome-text: #FAFAF8;
+  --chrome-text-soft: #B7B5AC;
+  --chrome-accent: #D9A62B;
 }
 
 html,
@@ -31,7 +47,9 @@ body {
 }
 
 .font-display {
-  font-family: var(--font-source-serif), Georgia, serif;
+  font-family: var(--font-oswald), 'Arial Narrow', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 .font-body {
   font-family: var(--font-inter), system-ui, sans-serif;

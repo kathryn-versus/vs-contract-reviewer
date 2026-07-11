@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
-import { Source_Serif_4, Inter, IBM_Plex_Mono } from 'next/font/google';
+import { Oswald, Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
-const sourceSerif = Source_Serif_4({
+// Bold condensed uppercase-friendly display face — closer to Versus's own
+// headline type than the previous serif, used for headings, client/project
+// names, and other font-display text throughout the app.
+const oswald = Oswald({
   subsets: ['latin'],
-  variable: '--font-source-serif',
+  weight: ['500', '600', '700'],
+  variable: '--font-oswald',
   display: 'swap',
 });
 const inter = Inter({
@@ -26,7 +30,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sourceSerif.variable} ${inter.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${oswald.variable} ${inter.variable} ${plexMono.variable}`}>
       <body className="font-body bg-paper text-ink antialiased">{children}</body>
     </html>
   );

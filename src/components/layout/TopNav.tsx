@@ -17,8 +17,8 @@ export function TopNav() {
       className={clsx(
         'font-body text-sm transition-colors',
         pathname === href || pathname.startsWith(href + '/')
-          ? 'text-ink font-medium'
-          : 'text-ink-soft hover:text-ink'
+          ? 'text-chrome-text font-medium'
+          : 'text-chrome-text-soft hover:text-chrome-text'
       )}
     >
       {label}
@@ -26,11 +26,13 @@ export function TopNav() {
   );
 
   return (
-    <header className="sticky top-0 z-30 border-b border-rule bg-paper/95 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b-2 border-chrome-accent bg-chrome/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <Link href="/" className="flex items-baseline gap-2">
-          <span className="font-display text-lg text-ink">VS Contract Reviewer</span>
-          <span className="hidden font-mono text-[10px] uppercase tracking-widest text-ink-faint sm:inline">
+          <span className="font-display text-lg uppercase tracking-wide text-chrome-text">
+            VS Contract Reviewer
+          </span>
+          <span className="hidden font-mono text-[10px] uppercase tracking-widest text-chrome-text-soft sm:inline">
             Versus Studio
           </span>
         </Link>
@@ -45,7 +47,7 @@ export function TopNav() {
           )}
 
           {user && (
-            <div className="flex items-center gap-3 border-l border-rule pl-6">
+            <div className="flex items-center gap-3 border-l border-chrome-text-soft/30 pl-6">
               <div className="flex items-center gap-2">
                 {user.photoURL && !avatarFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -57,17 +59,17 @@ export function TopNav() {
                     onError={() => setAvatarFailed(true)}
                   />
                 ) : (
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-xs text-paper">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-chrome-accent text-xs font-medium text-chrome">
                     {(user.displayName ?? user.email ?? '?')[0]?.toUpperCase()}
                   </div>
                 )}
-                <span className="hidden font-body text-sm text-ink-soft md:inline">
+                <span className="hidden font-body text-sm text-chrome-text-soft md:inline">
                   {user.displayName ?? user.email}
                 </span>
               </div>
               <button
                 onClick={signOut}
-                className="font-mono text-xs uppercase tracking-wide text-ink-faint hover:text-ink"
+                className="font-mono text-xs uppercase tracking-wide text-chrome-text-soft hover:text-chrome-text"
               >
                 Sign out
               </button>
@@ -78,4 +80,3 @@ export function TopNav() {
     </header>
   );
 }
-
