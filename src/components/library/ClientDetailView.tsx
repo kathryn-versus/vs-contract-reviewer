@@ -18,6 +18,7 @@ import {
   clearClientMsaFile,
   setClientNoMsa,
 } from '@/lib/firebase/firestore';
+import { recordRecentClient } from '@/lib/recents';
 import type { ClientDoc, ContractDoc } from '@/lib/types';
 
 export function ClientDetailView({ clientId }: { clientId: string }) {
@@ -30,6 +31,9 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [uploadingMsa, setUploadingMsa] = useState(false);
   const [msaError, setMsaError] = useState<string | null>(null);
+  // Set from a #matter-{id} URL hash (e.g. arriving from a Library search
+  // result) — auto-expands and scrolls to that specific matter.
+  const [autoExpandMatterId, setAutoExpandMatterId] = useState<string | null>(null);
 
   useEffect(() => {
     getClient(clientId).then((c) => {
@@ -38,7 +42,19 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     });
     listContractsForClient(clientId).then(setContracts);
     listClients().then(setAllClients);
+    recordRecentClient(clientId);
+
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#matter-')) {
+      setAutoExpandMatterId(window.location.hash.replace('#matter-', ''));
+    }
   }, [clientId]);
+
+  // Scroll to the deep-linked matter once its contracts have loaded (can't
+  // scroll to an element that hasn't rendered yet).
+  useEffect(() => {
+    if (!autoExpandMatterId || contracts.length === 0) return;
+    document.getElementById(`matter-${autoExpandMatterId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [autoExpandMatterId, contracts]);
 
   if (!client) {
     return <p className="font-mono text-sm text-ink-faint">Loading client…</p>;
@@ -246,13 +262,15 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
       <div className="space-y-3">
         <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">Matters</p>
         {contracts.map((c) => (
-          <MatterCard
-            key={c.id}
-            contract={c}
-            onEdit={() => setEditing(c)}
-            isGoverningMsa={client.msaContractId === c.id}
-            onToggleGoverningMsa={() => handleToggleGoverningMsa(c.id)}
-          />
+          <div key={c.id} id={`matter-${c.id}`}>
+            <MatterCard
+              contract={c}
+              onEdit={() => setEditing(c)}
+              isGoverningMsa={client.msaContractId === c.id}
+              onToggleGoverningMsa={() => handleToggleGoverningMsa(c.id)}
+              autoExpand={autoExpandMatterId === c.id}
+            />
+          </div>
         ))}
         {contracts.length === 0 && (
           <p className="py-8 text-center font-mono text-sm text-ink-faint">No matters yet.</p>

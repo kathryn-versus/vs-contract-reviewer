@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { subscribeClients, getOrCreateClient, ensureClientDriveFolder } from '@/lib/firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { getRecentClientIds } from '@/lib/recents';
 import type { ClientDoc, ContractDoc } from '@/lib/types';
 
 export function ClientListView() {
@@ -17,8 +18,13 @@ export function ClientListView() {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [recentClientIds, setRecentClientIds] = useState<string[]>([]);
 
   useEffect(() => subscribeClients(setClients), []);
+
+  useEffect(() => {
+    setRecentClientIds(getRecentClientIds());
+  }, []);
 
   // Fetch all contracts once and group client-side (small dataset expected).
   useEffect(() => {
@@ -39,6 +45,28 @@ export function ClientListView() {
   const filtered = useMemo(
     () => clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
     [clients, search]
+  );
+
+  // Matches by job name/number or counterparty across EVERY client — lets a
+  // job number or counterparty jump straight to the matter without needing
+  // to know (and browse to) the client first.
+  const matchingMatters = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return [];
+    const all = Object.values(contractsByClient).flat();
+    return all
+      .filter(
+        (c) =>
+          c.projectName.toLowerCase().includes(term) ||
+          c.projectNumber.toLowerCase().includes(term) ||
+          c.counterparty.toLowerCase().includes(term)
+      )
+      .slice(0, 20);
+  }, [contractsByClient, search]);
+
+  const recentClients = useMemo(
+    () => recentClientIds.map((id) => clients.find((c) => c.id === id)).filter((c): c is ClientDoc => Boolean(c)),
+    [recentClientIds, clients]
   );
 
   async function handleNewClient() {
@@ -84,9 +112,48 @@ export function ClientListView() {
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search clients…"
+        placeholder="Search clients, jobs, job numbers, or counterparties…"
         className="mb-4 w-full border border-rule px-3 py-2 text-sm outline-none focus:border-ink"
       />
+
+      {!search.trim() && recentClients.length > 0 && (
+        <div className="mb-6">
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-wide text-ink-faint">Recently viewed</p>
+          <div className="flex flex-wrap gap-2">
+            {recentClients.map((c) => (
+              <Link
+                key={c.id}
+                href={`/library/${c.id}`}
+                className="rounded-full border border-rule px-3 py-1 font-mono text-xs text-ink-soft hover:border-ink hover:text-ink"
+              >
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {search.trim() && matchingMatters.length > 0 && (
+        <div className="mb-6">
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-wide text-ink-faint">Matching jobs</p>
+          <div className="space-y-2">
+            {matchingMatters.map((m) => (
+              <Link
+                key={m.id}
+                href={`/library/${m.clientId}#matter-${m.id}`}
+                className="block rounded-sm border border-rule bg-paper p-3 transition hover:border-ink"
+              >
+                <p className="font-body text-sm text-ink">
+                  {m.projectName} <span className="font-mono text-xs text-ink-faint">({m.projectNumber})</span>
+                </p>
+                <p className="font-mono text-xs text-ink-faint">
+                  {m.clientName} · {m.docType} · Counterparty: {m.counterparty}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((client) => {

@@ -12,14 +12,22 @@ export function MatterCard({
   onEdit,
   isGoverningMsa,
   onToggleGoverningMsa,
+  autoExpand,
 }: {
   contract: ContractDoc;
   onEdit: () => void;
   isGoverningMsa?: boolean;
   onToggleGoverningMsa?: () => void;
+  /** Expands and highlights this card on mount — set when arriving via a
+   * Library search result's #matter-{id} deep link. */
+  autoExpand?: boolean;
 }) {
   const [versions, setVersions] = useState<VersionDoc[]>([]);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(Boolean(autoExpand));
+
+  useEffect(() => {
+    if (autoExpand) setExpanded(true);
+  }, [autoExpand]);
 
   useEffect(() => {
     listVersionsForContract(contract.id).then(setVersions).catch(() => {});
@@ -38,7 +46,7 @@ export function MatterCard({
     : null;
 
   return (
-    <Card className="p-5">
+    <Card className={autoExpand ? 'p-5 ring-2 ring-accent' : 'p-5'}>
       <div className="flex items-start justify-between">
         <div>
           <p className="font-display text-lg text-ink">

@@ -66,7 +66,10 @@ export function IntakeForm({
   const [characterCount, setCharacterCount] = useState<number | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
-  const [skipReview, setSkipReview] = useState(false);
+  // Defaults to true — filing without review is now the default path;
+  // a reviewer has to actively click "Run Claude review" to opt into
+  // analysis, rather than the other way around.
+  const [skipReview, setSkipReview] = useState(true);
 
   // Job picker state: either searching, attached to an existing matter, or
   // filling in the two fields for a brand-new one.
