@@ -9,11 +9,18 @@ export function FileDropzone({
   characterCount,
   onFile,
   onClear,
+  accept = '.pdf,.docx,.txt',
+  acceptLabel = 'PDF · DOCX · TXT',
 }: {
   file: File | null;
   characterCount: number | null;
   onFile: (file: File) => void;
   onClear: () => void;
+  /** Empty string means "any file type" (matches the native <input accept>
+   * behavior when the attribute is blank) — used when filing without
+   * review, since no text extraction is needed so any format is fine. */
+  accept?: string;
+  acceptLabel?: string;
 }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,7 +67,7 @@ export function FileDropzone({
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.docx,.txt"
+        accept={accept}
         className="hidden"
         onChange={(e) => {
           console.log('[dropzone] input onChange fired');
@@ -99,7 +106,7 @@ export function FileDropzone({
         )}
       >
         <p className="font-body text-sm text-ink">Drag and drop a contract, or click to browse</p>
-        <Chip>PDF · DOCX · TXT</Chip>
+        <Chip>{acceptLabel}</Chip>
       </div>
     </>
   );

@@ -92,17 +92,42 @@ export function IntakeForm({
     }
   }, [clientName, counterpartyEdited]);
 
+  // Switching FROM file-only mode INTO review mode after a file was
+  // already picked needs to retroactively attempt extraction, since
+  // file-only mode skips it — otherwise review mode would be stuck unable
+  // to submit (it requires characterCount) without the file being re-picked.
+  async function handleModeChange(next: boolean) {
+    setSkipReview(next);
+    if (!next && file && characterCount == null) {
+      try {
+        const text = await extractText(file);
+        setDocumentText(text);
+        setCharacterCount(text.length);
+        setParseError(null);
+      } catch (err) {
+        setParseError(err instanceof Error ? err.message : 'Could not parse file.');
+      }
+    }
+  }
+
   async function handleFile(f: File) {
     setFile(f);
     setCharacterCount(null);
     setParseError(null);
     setDuplicateMatches([]);
-    try {
-      const text = await extractText(f);
-      setDocumentText(text);
-      setCharacterCount(text.length);
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : 'Could not parse file.');
+
+    // Filing without review never sends text to Claude, so there's nothing
+    // to extract and no reason to reject unusual file types (old .doc,
+    // scanned PDFs that won't parse cleanly, etc.) — only attempt/require
+    // extraction when an actual review is going to run.
+    if (!skipReview) {
+      try {
+        const text = await extractText(f);
+        setDocumentText(text);
+        setCharacterCount(text.length);
+      } catch (err) {
+        setParseError(err instanceof Error ? err.message : 'Could not parse file.');
+      }
     }
 
     // Warn if this exact file name has already been reviewed somewhere —
@@ -184,7 +209,7 @@ export function IntakeForm({
       <div className="mb-6 flex justify-center gap-2">
         <button
           type="button"
-          onClick={() => setSkipReview(false)}
+          onClick={() => handleModeChange(false)}
           className={
             'rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wide transition ' +
             (!skipReview ? 'border-ink bg-ink text-paper' : 'border-rule text-ink-faint hover:border-ink-faint')
@@ -194,7 +219,7 @@ export function IntakeForm({
         </button>
         <button
           type="button"
-          onClick={() => setSkipReview(true)}
+          onClick={() => handleModeChange(true)}
           className={
             'rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wide transition ' +
             (skipReview ? 'border-ink bg-ink text-paper' : 'border-rule text-ink-faint hover:border-ink-faint')
@@ -305,6 +330,8 @@ export function IntakeForm({
               setDocumentText('');
               setDuplicateMatches([]);
             }}
+            accept={skipReview ? '' : '.pdf,.docx,.txt'}
+            acceptLabel={skipReview ? 'Any file type' : 'PDF · DOCX · TXT'}
           />
           {parseError && (
             <p className="mt-2 text-sm text-high">

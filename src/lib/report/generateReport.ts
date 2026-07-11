@@ -1,10 +1,18 @@
 import { STANDING_CONCERNS, CONCERN_SHORT_LABELS } from '@/lib/types';
 import type { ContractDoc, Finding } from '@/lib/types';
+import { computeReviewScore } from './scoring';
+
+const SEV_COLOR: Record<string, string> = { high: '#C0392B', medium: '#C97A22', low: '#3F7D4A' };
+const SEV_BG: Record<string, string> = { high: '#F7E1DF', medium: '#F6E9D5', low: '#E3EFE2' };
+const GRADE_COLOR: Record<string, string> = { A: '#3F7D4A', B: '#3F7D4A', C: '#C97A22', D: '#C0392B', F: '#C0392B' };
 
 /**
  * Builds a self-contained, downloadable HTML report — brief §4.1 "Share
  * Report": document metadata, severity summary, all issues with quotes and
- * recommendations, and redline language if drafted.
+ * recommendations, and redline language if drafted. Analysis/recommendation
+ * per issue sit behind a native <details> toggle (collapsed by default) so
+ * the report reads as a quick scan first, full detail one click away —
+ * quote and severity/concern stay visible either way.
  */
 export function generateReportHtml(params: {
   contract: Pick<ContractDoc, 'clientName' | 'projectName' | 'projectNumber' | 'docType' | 'counterparty'>;
@@ -23,34 +31,36 @@ export function generateReportHtml(params: {
     low: findings.filter((f) => f.severity === 'low').length,
   };
 
-  const sevColor: Record<string, string> = { high: '#8A3324', medium: '#A8761E', low: '#5A6B4F' };
-  const sevBg: Record<string, string> = { high: '#F3E4DF', medium: '#F4ECDA', low: '#E7ECE1' };
+  const { grade, summary } = computeReviewScore(findings);
 
   const concernIndexHtml = STANDING_CONCERNS.map(
     (c, i) =>
       `<span style="white-space:nowrap;">${
-        i > 0 ? '<span style="color:#D8D3C7;margin:0 10px;">|</span>' : ''
-      }<span style="font-weight:600;color:#1C1B19;">${c.id}.</span> ${escapeHtml(CONCERN_SHORT_LABELS[c.id] ?? c.label)}</span>`
+        i > 0 ? '<span style="color:#DEDDD6;margin:0 10px;">|</span>' : ''
+      }<span style="font-weight:600;color:#141414;">${c.id}.</span> ${escapeHtml(CONCERN_SHORT_LABELS[c.id] ?? c.label)}</span>`
   ).join('');
 
   const issuesHtml = findings
     .map(
       (f, i) => `
-      <div style="border-left:4px solid ${sevColor[f.severity]};border:1px solid #D8D3C7;border-left-width:4px;padding:16px;margin-bottom:16px;background:#F7F5F1;">
-        <span style="display:inline-block;font-family:monospace;font-size:11px;color:#8C8777;margin-right:10px;">${String(i + 1).padStart(2, '0')}</span>
-        <span style="display:inline-block;border:1px solid ${sevColor[f.severity]};background:${sevBg[f.severity]};color:${sevColor[f.severity]};font-family:monospace;font-size:11px;text-transform:uppercase;padding:2px 8px;border-radius:999px;">${f.severity}</span>
-        <span style="font-family:monospace;font-size:11px;color:#8C8777;text-transform:uppercase;margin-left:8px;">Concern ${f.concernId} &middot; ${escapeHtml(f.concernLabel)}</span>
-        <h3 style="font-family:Georgia,serif;margin:8px 0 4px;">${escapeHtml(f.issueTitle)}</h3>
-        <p style="font-family:monospace;font-size:12px;color:#8C8777;margin:0 0 12px;">${escapeHtml(f.location || '')}</p>
-        <p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8777;margin:0 0 2px;">Contract language</p>
-        <p style="font-style:italic;color:#5B574D;border-left:2px solid #D8D3C7;padding-left:12px;">"${escapeHtml(f.quote)}"</p>
-        <p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8777;margin:12px 0 2px;">Why it matters</p>
-        <p style="margin:0 0 12px;">${escapeHtml(f.analysis)}</p>
-        <p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8777;margin:0 0 2px;">Suggested negotiation direction</p>
-        <p style="margin:0;">${escapeHtml(f.recommendation)}</p>
+      <div style="border:1px solid #DEDDD6;border-left:4px solid ${SEV_COLOR[f.severity]};padding:16px;margin-bottom:16px;background:#FAFAF8;">
+        <span style="display:inline-block;font-family:monospace;font-size:11px;color:#8C8A82;margin-right:10px;">${String(i + 1).padStart(2, '0')}</span>
+        <span style="display:inline-block;border:1px solid ${SEV_COLOR[f.severity]};background:${SEV_BG[f.severity]};color:${SEV_COLOR[f.severity]};font-family:monospace;font-size:11px;text-transform:uppercase;padding:2px 8px;border-radius:999px;">${f.severity}</span>
+        <span style="font-family:monospace;font-size:11px;color:#8C8A82;text-transform:uppercase;margin-left:8px;">Concern ${f.concernId} &middot; ${escapeHtml(f.concernLabel)}</span>
+        <h3 style="font-family:'Oswald',Arial,sans-serif;font-weight:600;margin:8px 0 4px;">${escapeHtml(f.issueTitle)}</h3>
+        <p style="font-family:monospace;font-size:12px;color:#8C8A82;margin:0 0 12px;">${escapeHtml(f.location || '')}</p>
+        <p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8A82;margin:0 0 2px;">Contract language</p>
+        <p style="font-style:italic;color:#52514D;border-left:2px solid #DEDDD6;padding-left:12px;">"${escapeHtml(f.quote)}"</p>
+        <details style="margin-top:12px;">
+          <summary style="cursor:pointer;font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#A5730E;">Why it matters + negotiation direction</summary>
+          <p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8A82;margin:10px 0 2px;">Why it matters</p>
+          <p style="margin:0 0 12px;">${escapeHtml(f.analysis)}</p>
+          <p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8A82;margin:0 0 2px;">Suggested negotiation direction</p>
+          <p style="margin:0;">${escapeHtml(f.recommendation)}</p>
+        </details>
         ${
           redlines[f.uid]
-            ? `<p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8777;margin:12px 0 2px;">Drafted redline</p><pre style="white-space:pre-wrap;background:#EFE9DC;padding:12px;font-family:monospace;font-size:12px;margin:0;">${escapeHtml(redlines[f.uid])}</pre>`
+            ? `<p style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#8C8A82;margin:12px 0 2px;">Drafted redline</p><pre style="white-space:pre-wrap;background:#E8D9B0;padding:12px;font-family:monospace;font-size:12px;margin:0;">${escapeHtml(redlines[f.uid])}</pre>`
             : ''
         }
       </div>`
@@ -62,25 +72,33 @@ export function generateReportHtml(params: {
 <head>
 <meta charset="utf-8" />
 <title>Contract Review — ${escapeHtml(contract.clientName)} — ${escapeHtml(contract.projectName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { font-family: Inter, system-ui, sans-serif; background:#F7F5F1; color:#1C1B19; max-width: 820px; margin: 0 auto; padding: 40px 24px; }
-  h1 { font-family: Georgia, serif; }
-  .meta { font-family: monospace; font-size: 12px; color:#5B574D; margin-bottom: 24px; }
+  body { font-family: Inter, system-ui, sans-serif; background:#FAFAF8; color:#141414; max-width: 820px; margin: 0 auto; padding: 40px 24px; }
+  h1 { font-family: 'Oswald', Arial, sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.01em; }
+  .meta { font-family: monospace; font-size: 12px; color:#52514D; margin-bottom: 24px; }
+  .score { display:flex; align-items:center; gap:16px; border:1px solid #DEDDD6; padding:16px 20px; margin-bottom:24px; background:#FAFAF8; }
+  .score .grade { font-family:'Oswald',Arial,sans-serif; font-weight:700; font-size:40px; color:${GRADE_COLOR[grade]}; }
+  .score .txt { font-size:14px; color:#52514D; }
   .summary { display:flex; gap:12px; margin-bottom: 32px; }
-  .summary div { border:1px solid #D8D3C7; padding:12px 16px; flex:1; text-align:center; }
-  .summary .n { font-family: Georgia, serif; font-size: 24px; }
-  .summary .l { font-family: monospace; font-size: 10px; text-transform: uppercase; color:#8C8777; }
-  .concern-index { font-family: monospace; font-size: 11px; color: #5B574D; border-bottom: 2px solid #1C1B19; padding-bottom: 14px; margin-bottom: 20px; line-height: 1.8; }
+  .summary div { border:1px solid #DEDDD6; padding:12px 16px; flex:1; text-align:center; }
+  .summary .n { font-family: 'Oswald', Arial, sans-serif; font-weight:600; font-size: 24px; }
+  .summary .l { font-family: monospace; font-size: 10px; text-transform: uppercase; color:#8C8A82; }
+  .concern-index { font-family: monospace; font-size: 11px; color: #52514D; border-bottom: 2px solid #141414; padding-bottom: 14px; margin-bottom: 20px; line-height: 1.8; }
 </style>
 </head>
 <body>
-  <p style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#8C8777;">Versus Studio · Contract Review Report</p>
-  <h1 style="margin-bottom:2px;">Contract Review <span style="color:#8A3324;">VS</span></h1>
+  <p style="font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#8C8A82;">Versus Studio · Contract Review Report</p>
+  <h1 style="margin-bottom:2px;font-size:26px;">Contract Review <span style="color:#A5730E;">VS</span></h1>
   <div class="concern-index">${concernIndexHtml}</div>
-  <h2 style="font-family:Georgia,serif;font-size:18px;margin:0 0 4px;">${escapeHtml(contract.clientName)} — ${escapeHtml(contract.projectNumber)} — ${escapeHtml(contract.projectName)}</h2>
+  <h2 style="font-family:'Oswald',Arial,sans-serif;font-weight:600;font-size:18px;margin:0 0 4px;">${escapeHtml(contract.clientName)} — ${escapeHtml(contract.projectNumber)} — ${escapeHtml(contract.projectName)}</h2>
   <div class="meta">
     ${escapeHtml(contract.docType)} · Counterparty: ${escapeHtml(contract.counterparty)} · Reviewed against ${STANDING_CONCERNS.length} standing concerns · Generated ${generatedAt.toLocaleString()}
     ${fileName ? `<br />Source file: ${escapeHtml(fileName)}` : ''}
+  </div>
+  <div class="score">
+    <span class="grade">${grade}</span>
+    <span class="txt">${escapeHtml(summary)}</span>
   </div>
   <div class="summary">
     <div><div class="n">${counts.total}</div><div class="l">Total flagged</div></div>

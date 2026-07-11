@@ -1,66 +1,79 @@
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 import { STANDING_CONCERNS, CONCERN_SHORT_LABELS } from '@/lib/types';
 import type { ContractDoc, Finding } from '@/lib/types';
+import { computeReviewScore } from './scoring';
 
 const SEVERITY_COLOR: Record<string, string> = {
-  high: '#8A3324',
-  medium: '#A8761E',
-  low: '#5A6B4F',
+  high: '#C0392B',
+  medium: '#C97A22',
+  low: '#3F7D4A',
 };
 
 const SEVERITY_BG: Record<string, string> = {
-  high: '#F3E4DF',
-  medium: '#F4ECDA',
-  low: '#E7ECE1',
+  high: '#F7E1DF',
+  medium: '#F6E9D5',
+  low: '#E3EFE2',
+};
+
+const GRADE_COLOR: Record<string, string> = {
+  A: '#3F7D4A',
+  B: '#3F7D4A',
+  C: '#C97A22',
+  D: '#C0392B',
+  F: '#C0392B',
 };
 
 // Built-in PDF fonts only (no network font registration, so generation can
-// never silently fail on a bad font URL): Times-* stands in for the site's
-// Georgia serif headings, Courier for its monospace labels/meta, Helvetica
-// for body copy — mirroring the same three-typeface split used in the HTML
-// report and the on-screen results view.
+// never silently fail on a bad font URL): Helvetica-Bold now stands in for
+// the app's bold-condensed (Oswald) headline treatment — closer to that
+// bolder feel than the previous Times-Bold serif. Courier still carries
+// monospace labels/meta, Helvetica still carries body copy.
 const styles = StyleSheet.create({
-  page: { padding: 40, paddingBottom: 56, fontSize: 10, fontFamily: 'Helvetica', color: '#1C1B19', backgroundColor: '#F7F5F1' },
+  page: { padding: 40, paddingBottom: 56, fontSize: 10, fontFamily: 'Helvetica', color: '#141414', backgroundColor: '#FAFAF8' },
 
-  eyebrow: { fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8C8777', marginBottom: 8, fontFamily: 'Courier' },
-  masthead: { fontSize: 22, fontFamily: 'Times-Bold', marginBottom: 10 },
-  mastheadAccent: { color: '#8A3324' },
+  eyebrow: { fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8C8A82', marginBottom: 8, fontFamily: 'Courier' },
+  masthead: { fontSize: 22, fontFamily: 'Helvetica-Bold', marginBottom: 10 },
+  mastheadAccent: { color: '#A5730E' },
 
   concernIndex: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     borderBottomWidth: 2,
-    borderBottomColor: '#1C1B19',
+    borderBottomColor: '#141414',
     paddingBottom: 10,
     marginBottom: 16,
   },
-  concernItem: { fontSize: 8, fontFamily: 'Courier', color: '#5B574D', marginRight: 12, marginBottom: 3 },
-  concernNum: { fontFamily: 'Courier-Bold', color: '#1C1B19' },
+  concernItem: { fontSize: 8, fontFamily: 'Courier', color: '#52514D', marginRight: 12, marginBottom: 3 },
+  concernNum: { fontFamily: 'Courier-Bold', color: '#141414' },
 
-  title: { fontSize: 16, fontFamily: 'Times-Bold', marginBottom: 4 },
-  meta: { fontSize: 9, fontFamily: 'Courier', color: '#5B574D', marginBottom: 18 },
+  title: { fontSize: 16, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
+  meta: { fontSize: 9, fontFamily: 'Courier', color: '#52514D', marginBottom: 14 },
+
+  scoreRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#DEDDD6', padding: 12, marginBottom: 18, backgroundColor: '#FFFFFF' },
+  scoreGrade: { fontSize: 32, fontFamily: 'Helvetica-Bold', marginRight: 14 },
+  scoreText: { fontSize: 10, color: '#52514D', flex: 1, lineHeight: 1.4 },
 
   summaryRow: { flexDirection: 'row', marginBottom: 22 },
-  summaryBox: { flex: 1, borderWidth: 1, borderColor: '#D8D3C7', paddingVertical: 10, paddingHorizontal: 8, marginRight: 8, textAlign: 'center', backgroundColor: '#FFFFFF' },
-  summaryNum: { fontSize: 20, fontFamily: 'Times-Bold', marginBottom: 3 },
-  summaryLabel: { fontSize: 7, fontFamily: 'Courier', textTransform: 'uppercase', color: '#8C8777' },
+  summaryBox: { flex: 1, borderWidth: 1, borderColor: '#DEDDD6', paddingVertical: 10, paddingHorizontal: 8, marginRight: 8, textAlign: 'center', backgroundColor: '#FFFFFF' },
+  summaryNum: { fontSize: 20, fontFamily: 'Helvetica-Bold', marginBottom: 3 },
+  summaryLabel: { fontSize: 7, fontFamily: 'Courier', textTransform: 'uppercase', color: '#8C8A82' },
 
-  issue: { borderWidth: 1, borderColor: '#D8D3C7', borderLeftWidth: 4, padding: 14, marginBottom: 12, backgroundColor: '#FFFFFF' },
+  issue: { borderWidth: 1, borderColor: '#DEDDD6', borderLeftWidth: 4, padding: 14, marginBottom: 12, backgroundColor: '#FFFFFF' },
   issueHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  issueIndex: { fontSize: 9, fontFamily: 'Courier', color: '#8C8777', marginRight: 8 },
+  issueIndex: { fontSize: 9, fontFamily: 'Courier', color: '#8C8A82', marginRight: 8 },
   severityPill: { borderWidth: 1, borderRadius: 8, paddingVertical: 2, paddingHorizontal: 7, marginRight: 8 },
   severityPillText: { fontSize: 8, fontFamily: 'Courier-Bold', textTransform: 'uppercase' },
-  issueConcern: { fontSize: 8, fontFamily: 'Courier', textTransform: 'uppercase', color: '#8C8777' },
+  issueConcern: { fontSize: 8, fontFamily: 'Courier', textTransform: 'uppercase', color: '#8C8A82' },
 
-  issueTitle: { fontSize: 12.5, fontFamily: 'Times-Bold', marginBottom: 4 },
-  issueLocation: { fontSize: 8, fontFamily: 'Courier', color: '#8C8777', marginBottom: 8 },
+  issueTitle: { fontSize: 12.5, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
+  issueLocation: { fontSize: 8, fontFamily: 'Courier', color: '#8C8A82', marginBottom: 8 },
 
-  sectionLabel: { fontSize: 7.5, fontFamily: 'Courier-Bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#8C8777', marginTop: 8, marginBottom: 3 },
-  quote: { fontSize: 9.5, fontFamily: 'Times-Italic', color: '#5B574D', borderLeftWidth: 2, borderLeftColor: '#D8D3C7', paddingLeft: 10, lineHeight: 1.4 },
+  sectionLabel: { fontSize: 7.5, fontFamily: 'Courier-Bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#8C8A82', marginTop: 8, marginBottom: 3 },
+  quote: { fontSize: 9.5, fontFamily: 'Times-Italic', color: '#52514D', borderLeftWidth: 2, borderLeftColor: '#DEDDD6', paddingLeft: 10, lineHeight: 1.4 },
   body: { fontSize: 9.5, lineHeight: 1.45, fontFamily: 'Helvetica' },
-  redline: { fontSize: 8.5, fontFamily: 'Courier', backgroundColor: '#EFE9DC', padding: 8, marginTop: 2, lineHeight: 1.4 },
+  redline: { fontSize: 8.5, fontFamily: 'Courier', backgroundColor: '#E8D9B0', padding: 8, marginTop: 2, lineHeight: 1.4 },
 
-  footer: { position: 'absolute', bottom: 20, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7, fontFamily: 'Courier', color: '#8C8777', borderTopWidth: 1, borderTopColor: '#D8D3C7', paddingTop: 6 },
+  footer: { position: 'absolute', bottom: 20, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7, fontFamily: 'Courier', color: '#8C8A82', borderTopWidth: 1, borderTopColor: '#DEDDD6', paddingTop: 6 },
 });
 
 export function ContractReportPdf({
@@ -83,6 +96,7 @@ export function ContractReportPdf({
     medium: findings.filter((f) => f.severity === 'medium').length,
     low: findings.filter((f) => f.severity === 'low').length,
   };
+  const { grade, summary } = computeReviewScore(findings);
 
   return (
     <Document>
@@ -109,6 +123,11 @@ export function ContractReportPdf({
           Generated {when.toLocaleString()}
           {fileName ? `\nSource file: ${fileName}` : ''}
         </Text>
+
+        <View style={styles.scoreRow}>
+          <Text style={[styles.scoreGrade, { color: GRADE_COLOR[grade] }]}>{grade}</Text>
+          <Text style={styles.scoreText}>{summary}</Text>
+        </View>
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryBox}>

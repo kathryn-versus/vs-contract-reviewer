@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { SeveritySummary, type FilterValue } from './SeveritySummary';
+import { ReviewScoreBanner } from './ReviewScoreBanner';
 import { IssueCard } from './IssueCard';
 import { PrioritizeDrawer } from './PrioritizeDrawer';
 import { RedlineDrawer } from './RedlineDrawer';
@@ -174,6 +175,7 @@ export function ResultsView({
 
   return (
     <div className="space-y-6">
+      <ReviewScoreBanner findings={findings} />
       <SeveritySummary findings={findings} active={filter} onChange={setFilter} />
 
       <div className="flex flex-wrap items-center gap-2 border-y border-rule py-3">
