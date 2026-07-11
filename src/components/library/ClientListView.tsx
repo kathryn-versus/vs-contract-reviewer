@@ -89,9 +89,14 @@ export function ClientListView() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl text-ink">Client Library</h1>
-        <Button variant="primary" onClick={() => setAdding((v) => !v)}>
-          + New Client
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/batch-import">
+            <Button variant="ghost">Batch import</Button>
+          </Link>
+          <Button variant="primary" onClick={() => setAdding((v) => !v)}>
+            + New Client
+          </Button>
+        </div>
       </div>
 
       {adding && (
