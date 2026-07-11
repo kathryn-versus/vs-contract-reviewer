@@ -137,32 +137,31 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   return (
     <div className="space-y-8">
       <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-2xl text-ink">{client.name}</h1>
-          {client.driveFolderUrl ? (
-            <a
-              href={client.driveFolderUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-xs text-accent hover:underline"
-            >
-              Drive folder ↗
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={handleEnsureFolder}
-              disabled={creatingFolder}
-              className="font-mono text-xs text-ink-faint hover:text-ink disabled:opacity-50"
-            >
-              {creatingFolder ? 'Creating…' : '+ Create Drive folder'}
-            </button>
-          )}
-          <Link
-            href={`/?clientName=${encodeURIComponent(client.name)}`}
-            className="font-mono text-xs text-accent hover:underline"
-          >
-            + Upload contract
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-display text-2xl text-ink">{client.name}</h1>
+            {client.driveFolderUrl ? (
+              <a
+                href={client.driveFolderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-xs text-accent hover:underline"
+              >
+                Drive folder ↗
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={handleEnsureFolder}
+                disabled={creatingFolder}
+                className="font-mono text-xs text-ink-faint hover:text-ink disabled:opacity-50"
+              >
+                {creatingFolder ? 'Creating…' : '+ Create Drive folder'}
+              </button>
+            )}
+          </div>
+          <Link href={`/?clientName=${encodeURIComponent(client.name)}`}>
+            <Button variant="secondary">+ Upload contract</Button>
           </Link>
         </div>
         <p className="font-mono text-xs text-ink-faint">{contracts.length} matters on file</p>

@@ -199,6 +199,12 @@ export const CONCERN_SHORT_LABELS: Record<number, string> = {
   7: 'Portfolio/awards',
   8: 'Kill fee structure',
   9: 'Payment terms',
+  // Not a standing concern (not in STANDING_CONCERNS) — only ever appears
+  // when prompts.ts's buildAnalysisPrompt added the MSA alignment concern
+  // for a review that had a governing MSA on file. Included here so any UI
+  // that looks up a short label by concernId doesn't render blank/undefined
+  // for it.
+  10: 'MSA alignment',
 };
 
 export const SEVERITY_LABELS: Record<Severity, string> = {

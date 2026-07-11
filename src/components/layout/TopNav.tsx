@@ -26,7 +26,12 @@ export function TopNav() {
   );
 
   return (
-    <header className="sticky top-0 z-30 border-b-2 border-chrome-accent bg-chrome/95 backdrop-blur">
+    // bg-chrome (no opacity modifier) — the /95 variant silently
+    // failed to apply any background at all here, since --chrome-bg is a
+    // plain hex CSS variable rather than the space-separated R G B format
+    // Tailwind's opacity-modifier syntax needs. Full-opacity solid works
+    // fine and a sticky nav doesn't need to be see-through anyway.
+    <header className="sticky top-0 z-30 border-b-2 border-chrome-accent bg-chrome">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <Link href="/" className="flex items-baseline gap-2">
           <span className="font-display text-lg uppercase tracking-wide text-chrome-text">

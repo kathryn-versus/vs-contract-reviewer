@@ -15,12 +15,34 @@ const STUDIO_IDENTITY =
   'of the studio, flagging terms that create outsized risk or diverge from the ' +
   "studio's standing negotiation positions.";
 
-const CONCERNS_BLOCK = STANDING_CONCERNS.map(
-  (c) => `${c.id}. ${c.label} — ${c.description}`
-).join('\n');
-
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
   const { docType, counterparty, clientName, clientNotes, msaContext, documentText } = input;
+
+  // Previously, msaContext was ONLY used to suppress false positives ("don't
+  // re-flag what the MSA already settled") — there was no instruction to
+  // actively compare this document's terms against the MSA's, so real
+  // conflicts (e.g. a SOW quietly weakening payment or termination terms
+  // the MSA already locked in) were never caught. When an MSA is on file,
+  // add one more concern devoted specifically to that comparison. Its id is
+  // one past the standing list and is NOT added to the permanent
+  // STANDING_CONCERNS export — it only applies when there's actually an MSA
+  // to compare against, not to every review.
+  const msaAlignmentConcern = msaContext
+    ? {
+        id: STANDING_CONCERNS.length + 1,
+        label: 'MSA alignment',
+        description:
+          "Compare this document's material terms (payment, termination, liability, indemnification, IP, and anything else both documents address) against the governing MSA provided below. Flag any place where this document conflicts with, narrows, weakens, or fails to honor a protection already established in the MSA. Do not flag a term merely for repeating or incorporating the MSA by reference — only flag genuine conflicts or deviations.",
+      }
+    : null;
+
+  const concernsForPrompt = msaAlignmentConcern
+    ? [...STANDING_CONCERNS, msaAlignmentConcern]
+    : STANDING_CONCERNS;
+
+  const concernsBlock = concernsForPrompt
+    .map((c) => `${c.id}. ${c.label} — ${c.description}`)
+    .join('\n');
 
   return `${STUDIO_IDENTITY}
 
@@ -35,15 +57,15 @@ ${
     : ''
 }${
   msaContext
-    ? `GOVERNING MSA (excerpt, pulled automatically from this client's Drive folder — use it to understand what's already been negotiated at the master-agreement level; a SOW that simply incorporates MSA terms is not itself an issue):\n"""\n${msaContext}\n"""\n`
+    ? `GOVERNING MSA (excerpt, pulled automatically from this client's Drive folder — use it both as background for what's already been negotiated at the master-agreement level (a SOW that simply incorporates MSA terms is not itself an issue) AND as the comparison document for the "MSA alignment" concern below):\n"""\n${msaContext}\n"""\n`
     : ''
 }
 THE STANDING CONCERNS
-Assess the document against exactly these ${STANDING_CONCERNS.length} concerns. Only return
+Assess the document against exactly these ${concernsForPrompt.length} concerns. Only return
 concerns where you find an actual issue in the text — omit any concern the
 document already handles acceptably.
 
-${CONCERNS_BLOCK}
+${concernsBlock}
 
 INSTRUCTIONS
 - For each issue found, quote the exact verbatim clause from the document.
@@ -60,7 +82,7 @@ RESPONSE FORMAT
 Return a JSON array only — no markdown code fences, no commentary before or
 after. Each element:
 {
-  "concernId": number (1-${STANDING_CONCERNS.length}),
+  "concernId": number (1-${concernsForPrompt.length}),
   "concernLabel": string,
   "severity": "high" | "medium" | "low",
   "issueTitle": string,
