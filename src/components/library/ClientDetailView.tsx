@@ -38,6 +38,9 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   const [executedAgreements, setExecutedAgreements] = useState<ExecutedAgreementDoc[]>([]);
   const [agreementDocType, setAgreementDocType] = useState<DocType>('SOW');
   const [agreementLabel, setAgreementLabel] = useState('');
+  const [agreementProjectKey, setAgreementProjectKey] = useState('');
+  const [agreementNewProjectNumber, setAgreementNewProjectNumber] = useState('');
+  const [agreementNewProjectName, setAgreementNewProjectName] = useState('');
   const [uploadingAgreement, setUploadingAgreement] = useState(false);
   const [agreementError, setAgreementError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -89,6 +92,29 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   }
 
   const msaContract = contracts.find((c) => c.id === client.msaContractId);
+
+  // SOWs and Change Orders are always tied to a specific job — MSA and
+  // Other stay optional at the client level, since an MSA typically governs
+  // many jobs rather than one.
+  const REQUIRES_PROJECT: DocType[] = ['SOW', 'Change Order'];
+  const projectOptionKey = (num: string, name: string) => `${num}—${name}`;
+  const projectOptions = Array.from(
+    new Map(
+      contracts.map((c) => [
+        projectOptionKey(c.projectNumber, c.projectName),
+        { projectNumber: c.projectNumber, projectName: c.projectName },
+      ])
+    ).values()
+  );
+  function resolveAgreementProject(): { projectNumber: string; projectName: string } | null {
+    if (agreementProjectKey === '__new__') {
+      const projectNumber = agreementNewProjectNumber.trim();
+      const projectName = agreementNewProjectName.trim();
+      if (!projectNumber || !projectName) return null;
+      return { projectNumber, projectName };
+    }
+    return projectOptions.find((p) => projectOptionKey(p.projectNumber, p.projectName) === agreementProjectKey) ?? null;
+  }
 
   async function saveNotes() {
     setSavingNotes(true);
@@ -166,6 +192,11 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !client) return;
+    const project = resolveAgreementProject();
+    if (REQUIRES_PROJECT.includes(agreementDocType) && !project) {
+      setAgreementError('Pick a project for this document type — SOWs and Change Orders are filed under a specific job.');
+      return;
+    }
     setUploadingAgreement(true);
     setAgreementError(null);
     try {
@@ -174,6 +205,10 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
       form.append('clientName', client.name);
       form.append('docType', agreementDocType);
       form.append('label', agreementLabel);
+      if (project) {
+        form.append('projectNumber', project.projectNumber);
+        form.append('projectName', project.projectName);
+      }
       const res = await fetch('/api/drive/upload-executed-agreement', { method: 'POST', body: form });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -182,10 +217,15 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
         label: agreementLabel.trim(),
         driveFileId: data.driveFileId,
         driveUrl: data.driveUrl,
+        projectNumber: project?.projectNumber ?? null,
+        projectName: project?.projectName ?? null,
         executedDate: null,
         uploadedBy: { name: user?.displayName ?? user?.email ?? '', email: user?.email ?? '' },
       });
       setAgreementLabel('');
+      setAgreementProjectKey('');
+      setAgreementNewProjectNumber('');
+      setAgreementNewProjectName('');
       listExecutedAgreements(clientId).then(setExecutedAgreements);
     } catch (err) {
       setAgreementError(err instanceof Error ? err.message : 'Upload failed.');
@@ -336,6 +376,11 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
                   <span className="mr-2 rounded-full border border-rule px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
                     {a.docType}
                   </span>
+                  {a.projectNumber && (
+                    <span className="mr-2 font-mono text-[10px] text-ink-faint">
+                      {a.projectNumber} — {a.projectName}
+                    </span>
+                  )}
                   <a
                     href={a.driveUrl}
                     target="_blank"
@@ -370,6 +415,47 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
               <option value="Other">Other</option>
             </select>
           </label>
+          <label className="block">
+            <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">
+              Project{REQUIRES_PROJECT.includes(agreementDocType) ? '' : ' (optional)'}
+            </span>
+            <select
+              value={agreementProjectKey}
+              onChange={(e) => setAgreementProjectKey(e.target.value)}
+              className="border border-rule px-3 py-2 text-sm"
+            >
+              <option value="">— none (client-level) —</option>
+              {projectOptions.map((p) => {
+                const key = `${p.projectNumber}—${p.projectName}`;
+                return (
+                  <option key={key} value={key}>
+                    {p.projectNumber} — {p.projectName}
+                  </option>
+                );
+              })}
+              <option value="__new__">+ New project…</option>
+            </select>
+          </label>
+          {agreementProjectKey === '__new__' && (
+            <>
+              <label className="block">
+                <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">Job number</span>
+                <input
+                  value={agreementNewProjectNumber}
+                  onChange={(e) => setAgreementNewProjectNumber(e.target.value)}
+                  className="w-28 border border-rule px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">Project name</span>
+                <input
+                  value={agreementNewProjectName}
+                  onChange={(e) => setAgreementNewProjectName(e.target.value)}
+                  className="w-48 border border-rule px-3 py-2 text-sm"
+                />
+              </label>
+            </>
+          )}
           <label className="block flex-1">
             <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">
               Label (optional — e.g. &quot;Change Order #2&quot;)

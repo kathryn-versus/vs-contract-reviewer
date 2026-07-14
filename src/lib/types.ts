@@ -47,6 +47,11 @@ export interface ExecutedAgreementDoc {
   label: string;
   driveFileId: string;
   driveUrl: string;
+  // Which job this is filed under — required for SOW/Change Order (always
+  // job-specific), null for MSA/Other left at the client level (an MSA
+  // typically governs many jobs, not just one).
+  projectNumber: string | null;
+  projectName: string | null;
   executedDate: string | null;
   uploadedAt: number;
   uploadedBy: { name: string; email: string };
