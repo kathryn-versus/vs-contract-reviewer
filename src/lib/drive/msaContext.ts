@@ -1,6 +1,7 @@
 import 'server-only';
 import { adminDb } from '@/lib/firebase/admin';
 import { downloadFileBuffer } from './client';
+import { extractDocText } from './extractDocText';
 
 const MAX_MSA_CHARS = 20_000;
 
@@ -35,7 +36,7 @@ export async function getGoverningMsaContext(clientId: string): Promise<string |
     if (!driveFileId) return null;
 
     const { buffer, mimeType, name } = await downloadFileBuffer(driveFileId);
-    const text = await extractText(buffer, mimeType, name);
+    const text = await extractDocText(buffer, mimeType, name);
     return text ? text.slice(0, MAX_MSA_CHARS) : null;
   } catch (err) {
     console.error('getGoverningMsaContext failed', err);
@@ -43,26 +44,3 @@ export async function getGoverningMsaContext(clientId: string): Promise<string |
   }
 }
 
-async function extractText(buffer: Buffer, mimeType: string, name: string): Promise<string | null> {
-  const lower = name.toLowerCase();
-
-  if (lower.endsWith('.pdf') || mimeType.includes('pdf')) {
-    const pdfParse = (await import('pdf-parse')).default;
-    const result = await pdfParse(buffer);
-    return result.text;
-  }
-
-  if (lower.endsWith('.docx') || mimeType.includes('officedocument.wordprocessingml')) {
-    const mammoth = await import('mammoth');
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
-  }
-
-  if (lower.endsWith('.txt') || mimeType.startsWith('text/')) {
-    return buffer.toString('utf-8');
-  }
-
-  // Native Google Docs (e.g. a duplicated copy) aren't binary-downloadable via
-  // alt=media in a plain-text-friendly way here — skip rather than error.
-  return null;
-}

@@ -7,7 +7,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { ConcernIndex } from '@/components/review/ConcernIndex';
 import { ResultsView } from '@/components/review/ResultsView';
 import { Button } from '@/components/ui/Button';
-import { getContract, getVersion, getClient } from '@/lib/firebase/firestore';
+import { getContract, getVersion, getClient, listVersionsForContract } from '@/lib/firebase/firestore';
 import { STANDING_CONCERNS } from '@/lib/types';
 import type { ContractDoc, VersionDoc } from '@/lib/types';
 
@@ -28,6 +28,7 @@ function PastReviewView({ contractId, versionId }: { contractId: string; version
   const [contract, setContract] = useState<ContractDoc | null>(null);
   const [version, setVersion] = useState<VersionDoc | null>(null);
   const [clientNotes, setClientNotes] = useState<string | null>(null);
+  const [versions, setVersions] = useState<VersionDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,6 +45,8 @@ function PastReviewView({ contractId, versionId }: { contractId: string; version
         setVersion(v);
         const client = await getClient(c.clientId);
         if (!cancelled) setClientNotes(client?.notes ?? null);
+        const allVersions = await listVersionsForContract(contractId);
+        if (!cancelled) setVersions(allVersions);
       } catch {
         if (!cancelled) setError('Could not load that review.');
       }
@@ -68,6 +71,12 @@ function PastReviewView({ contractId, versionId }: { contractId: string; version
     return <p className="font-mono text-sm text-ink-faint">Loading…</p>;
   }
 
+  const latestVersion = versions.reduce<VersionDoc | null>(
+    (max, v) => (!max || v.versionNumber > max.versionNumber ? v : max),
+    null
+  );
+  const isLatest = !latestVersion || latestVersion.id === version.id;
+
   return (
     <div>
       <div className="mb-4 flex items-baseline justify-between">
@@ -91,6 +100,22 @@ function PastReviewView({ contractId, versionId }: { contractId: string; version
       <p className="-mt-4 mb-6 font-mono text-xs text-ink-faint">
         {contract.clientName} — {contract.projectName} ({contract.projectNumber}) · Counterparty: {contract.counterparty}
       </p>
+      {!isLatest && latestVersion && (
+        <div className="mb-6 border border-accent/30 bg-high-bg px-4 py-3">
+          <p className="font-mono text-xs text-ink">
+            A newer version (v{latestVersion.versionNumber}) of this matter is on file.{' '}
+            <Link href={`/review/${contractId}/${latestVersion.id}`} className="text-accent hover:underline">
+              View it →
+            </Link>
+          </p>
+        </div>
+      )}
+      {version.deltaFromPrevious && (
+        <div className="mb-6 border border-rule bg-paper px-4 py-3">
+          <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">What changed in this version</p>
+          <p className="mt-1 font-body text-sm text-ink-soft">{version.deltaFromPrevious}</p>
+        </div>
+      )}
       <ResultsView
         contract={contract}
         contractId={contractId}

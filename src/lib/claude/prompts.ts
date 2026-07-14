@@ -170,3 +170,30 @@ ${params.clientNotes ? `CLIENT STANDING NOTES: ${params.clientNotes}` : ''}
 Respond conversationally but concretely — when asked for revised language,
 give exact clause text the user can paste into a redline.`;
 }
+
+export function buildVersionDeltaPrompt(params: { previousText: string; newText: string }): string {
+  return `${STUDIO_IDENTITY}
+
+You are comparing two versions of the same contract document to summarize
+what changed for a producer who doesn't have time to reread the whole thing.
+
+PREVIOUS VERSION
+"""
+${params.previousText.slice(0, 60_000)}
+"""
+
+NEW VERSION
+"""
+${params.newText.slice(0, 60_000)}
+"""
+
+INSTRUCTIONS
+- If the new version is substantively identical to the previous one (only
+  formatting, whitespace, or non-substantive wording differs), respond with
+  exactly: "No substantive changes from the previous version."
+- Otherwise, summarize what changed in 1-3 sentences — focus on material
+  terms (payment, scope, dates, deliverables, termination, liability) that a
+  producer would actually care about. Do not describe every wording tweak.
+
+Return plain text only — no JSON, no markdown, no preamble.`;
+}

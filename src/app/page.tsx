@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { listVersionsForContract, Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AuthGuard } from '@/components/layout/AuthGuard';
@@ -120,6 +120,20 @@ function ReviewerFlow() {
             driveFolderId: null,
           });
 
+      // Grab the current latest version's Drive file (if any) BEFORE adding
+      // the new version below, so there's something to diff the new upload
+      // against. Only relevant for an existing matter — a brand-new matter
+      // has nothing prior to compare to.
+      let previousDriveFileId: string | null = null;
+      if (isExistingMatter) {
+        const priorVersions = await listVersionsForContract(contractId);
+        const priorLatest = priorVersions.reduce<typeof priorVersions[number] | null>(
+          (max, v) => (!max || v.versionNumber > max.versionNumber ? v : max),
+          null
+        );
+        previousDriveFileId = priorLatest?.driveFileId ?? null;
+      }
+
       const versionNumber = isExistingMatter ? await getNextVersionNumber(contractId) : 1;
       const versionId = await addVersion(contractId, {
         versionNumber,
@@ -174,6 +188,19 @@ function ReviewerFlow() {
         }
       } catch {
         // Drive failures shouldn't block the reviewer from seeing results.
+      }
+
+      // Fire-and-forget: compare this version's text against the previous
+      // one and save a short "what changed" summary onto deltaFromPrevious,
+      // shown on the matter card and the review page. Non-blocking so it
+      // never delays getting to results, and skipped entirely if there's no
+      // previous version or either upload didn't make it to Drive.
+      if (isExistingMatter && previousDriveFileId && driveFileId) {
+        fetch('/api/review/version-delta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contractId, versionId, previousDriveFileId, newDriveFileId: driveFileId }),
+        }).catch(() => {});
       }
 
       if (values.skipReview) {
