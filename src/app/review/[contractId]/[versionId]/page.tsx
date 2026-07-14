@@ -122,6 +122,7 @@ function PastReviewView({ contractId, versionId }: { contractId: string; version
         versionId={versionId}
         versionNumber={version.versionNumber}
         findings={version.findings}
+        insuranceRequirements={version.insuranceRequirements ?? []}
         clientNotes={clientNotes}
         driveFileId={version.driveFileId}
         driveFolderId={version.driveFolderId}

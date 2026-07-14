@@ -80,6 +80,16 @@ export interface Finding {
   redlineText?: string;
 }
 
+export interface InsuranceRequirement {
+  requirement: string; // e.g. "Commercial General Liability"
+  limit: string; // e.g. "$1,000,000 per occurrence / $2,000,000 aggregate"
+  quote: string;
+  location: string;
+  // null when the limit looks typical/adequate — this is an inventory of
+  // what's required, not a findings list, so most entries have no flag.
+  flag: string | null;
+}
+
 export interface VersionDoc {
   id: string;
   versionNumber: number;
@@ -88,6 +98,7 @@ export interface VersionDoc {
   fileName: string;
   characterCount: number;
   findings: Finding[];
+  insuranceRequirements: InsuranceRequirement[];
   deltaFromPrevious: string | null;
   // Per-version Drive links — kept on each version (not just the top-level
   // ContractDoc) so version history survives later uploads instead of being

@@ -1,5 +1,5 @@
 import { STANDING_CONCERNS, CONCERN_SHORT_LABELS } from '@/lib/types';
-import type { ContractDoc, Finding } from '@/lib/types';
+import type { ContractDoc, Finding, InsuranceRequirement } from '@/lib/types';
 import { computeReviewScore } from './scoring';
 
 const SEV_COLOR: Record<string, string> = { high: '#C0392B', medium: '#C97A22', low: '#3F7D4A' };
@@ -17,11 +17,13 @@ const GRADE_COLOR: Record<string, string> = { A: '#3F7D4A', B: '#3F7D4A', C: '#C
 export function generateReportHtml(params: {
   contract: Pick<ContractDoc, 'clientName' | 'projectName' | 'projectNumber' | 'docType' | 'counterparty'>;
   findings: Finding[];
+  insuranceRequirements?: InsuranceRequirement[];
   redlines: Record<string, string>; // uid -> redlineText
   generatedAt?: Date;
   fileName?: string | null;
 }): string {
   const { contract, findings, redlines, fileName } = params;
+  const insuranceRequirements = params.insuranceRequirements ?? [];
   const generatedAt = params.generatedAt ?? new Date();
 
   const counts = {
@@ -43,6 +45,23 @@ export function generateReportHtml(params: {
                 <td class="exec-num">${String(i + 1).padStart(2, '0')}</td>
                 <td><span class="exec-sev" style="border-color:${SEV_COLOR[f.severity]};background:${SEV_BG[f.severity]};color:${SEV_COLOR[f.severity]};">${f.severity}</span></td>
                 <td class="exec-title"><a href="#issue-${i + 1}">${escapeHtml(f.issueTitle)}</a></td>
+              </tr>`
+            )
+            .join('')}
+        </tbody></table>
+      </div>`
+    : '';
+
+  const insuranceHtml = insuranceRequirements.length
+    ? `<div class="exec-summary">
+        <p class="exec-summary-label">Insurance requirements on file</p>
+        <table class="exec-table"><tbody>
+          ${insuranceRequirements
+            .map(
+              (r) => `<tr>
+                <td class="exec-title" style="width:38%;">${escapeHtml(r.requirement)}</td>
+                <td class="exec-title" style="width:24%;">${escapeHtml(r.limit)}</td>
+                <td class="exec-title" style="color:${r.flag ? '#C97A22' : '#8C8A82'};">${r.flag ? escapeHtml(r.flag) : 'Looks standard'}</td>
               </tr>`
             )
             .join('')}
@@ -126,6 +145,7 @@ export function generateReportHtml(params: {
     <span class="txt">${escapeHtml(summary)}</span>
   </div>
   ${execSummaryHtml}
+  ${insuranceHtml}
   <div class="summary">
     <div><div class="n">${counts.total}</div><div class="l">Total flagged</div></div>
     <div><div class="n">${counts.high}</div><div class="l">High</div></div>

@@ -85,20 +85,46 @@ INSTRUCTIONS
 - Note the section/location of the clause if identifiable (e.g. "Section 8.2").
 - Do not invent issues that aren't supported by the text.
 
+INSURANCE REQUIREMENTS AUDIT
+Separately from the standing concerns above, scan the document for every
+insurance requirement it imposes on Versus Studio (types of coverage
+required — e.g. Commercial General Liability, Workers\' Compensation,
+Umbrella/Excess, Professional/E&O, Auto, Cyber — and their limits). List
+every one you find, even if it looks standard and unremarkable — this is an
+inventory, not a findings list. For each, set "flag" to null if the limit
+looks typical/adequate for a production services engagement, or a short
+one-sentence note if it looks unusually high, unusually low, missing a
+coverage type you'd expect for this kind of engagement, or otherwise worth
+being aware of.
+
 RESPONSE FORMAT
-Return a JSON array only — no markdown code fences, no commentary before or
-after. Each element:
+Return a JSON object only — no markdown code fences, no commentary before or
+after. Shape:
 {
-  "concernId": number (1-${concernsForPrompt.length}),
-  "concernLabel": string,
-  "severity": "high" | "medium" | "low",
-  "issueTitle": string,
-  "quote": string,
-  "location": string,
-  "analysis": string,
-  "recommendation": string
+  "findings": [
+    {
+      "concernId": number (1-${concernsForPrompt.length}),
+      "concernLabel": string,
+      "severity": "high" | "medium" | "low",
+      "issueTitle": string,
+      "quote": string,
+      "location": string,
+      "analysis": string,
+      "recommendation": string
+    }
+  ],
+  "insuranceRequirements": [
+    {
+      "requirement": string,
+      "limit": string,
+      "quote": string,
+      "location": string,
+      "flag": string | null
+    }
+  ]
 }
-If there are no issues at all, return [].
+If there are no issues at all, findings should be []. If the document has no
+insurance requirements, insuranceRequirements should be [].
 
 DOCUMENT TEXT
 """

@@ -1,6 +1,6 @@
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 import { STANDING_CONCERNS, CONCERN_SHORT_LABELS } from '@/lib/types';
-import type { ContractDoc, Finding } from '@/lib/types';
+import type { ContractDoc, Finding, InsuranceRequirement } from '@/lib/types';
 import { computeReviewScore } from './scoring';
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -87,12 +87,14 @@ const styles = StyleSheet.create({
 export function ContractReportPdf({
   contract,
   findings,
+  insuranceRequirements = [],
   redlines,
   generatedAt,
   fileName,
 }: {
   contract: Pick<ContractDoc, 'clientName' | 'projectName' | 'projectNumber' | 'docType' | 'counterparty'>;
   findings: Finding[];
+  insuranceRequirements?: InsuranceRequirement[];
   redlines: Record<string, string>;
   generatedAt?: Date;
   fileName?: string | null;
@@ -152,6 +154,24 @@ export function ContractReportPdf({
                   <Text style={[styles.execSevText, { color: SEVERITY_COLOR[f.severity] }]}>{f.severity}</Text>
                 </View>
                 <Text style={styles.execTitle}>{f.issueTitle}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {insuranceRequirements.length > 0 && (
+          <View style={styles.execSummary}>
+            <Text style={styles.execSummaryLabel}>Insurance requirements on file</Text>
+            {insuranceRequirements.map((r, i) => (
+              <View key={i} style={styles.execRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.execTitle}>
+                    {r.requirement} — {r.limit}
+                  </Text>
+                  {r.flag && (
+                    <Text style={[styles.execTitle, { color: '#C97A22', fontSize: 8 }]}>{r.flag}</Text>
+                  )}
+                </View>
               </View>
             ))}
           </View>

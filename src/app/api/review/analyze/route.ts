@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import { claude, CLAUDE_MODEL, MAX_TOKENS, parseJsonResponse } from '@/lib/claude/client';
 import { buildAnalysisPrompt } from '@/lib/claude/prompts';
 import { getGoverningMsaContext } from '@/lib/drive/msaContext';
-import type { Finding, Severity } from '@/lib/types';
+import type { Finding, InsuranceRequirement, Severity } from '@/lib/types';
 
 interface RawFinding {
   concernId: number;
@@ -14,6 +14,11 @@ interface RawFinding {
   location: string;
   analysis: string;
   recommendation: string;
+}
+
+interface RawAnalysisResponse {
+  findings: RawFinding[];
+  insuranceRequirements: InsuranceRequirement[];
 }
 
 export async function POST(req: NextRequest) {
@@ -45,10 +50,11 @@ export async function POST(req: NextRequest) {
       throw new Error('No text response from Claude.');
     }
 
-    const raw = parseJsonResponse<RawFinding[]>(textBlock.text);
-    const findings: Finding[] = raw.map((f) => ({ uid: `issue-${nanoid(8)}`, ...f }));
+    const raw = parseJsonResponse<RawAnalysisResponse>(textBlock.text);
+    const findings: Finding[] = raw.findings.map((f) => ({ uid: `issue-${nanoid(8)}`, ...f }));
+    const insuranceRequirements = raw.insuranceRequirements ?? [];
 
-    return NextResponse.json({ findings });
+    return NextResponse.json({ findings, insuranceRequirements });
   } catch (err) {
     console.error('review/analyze failed', err);
     return NextResponse.json(

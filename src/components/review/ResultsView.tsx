@@ -13,7 +13,7 @@ import { duplicateContractToGoogleDocs } from '@/lib/report/googleDocsHandoff';
 import { uploadReportToDrive } from '@/lib/report/uploadToDrive';
 import { addRedlineCommentsToDoc } from '@/lib/report/addRedlineComments';
 import { appendIssueThreadMessages, updateVersionDrive, updateVersionFindings } from '@/lib/firebase/firestore';
-import type { ContractDoc, Finding, ThreadMessage } from '@/lib/types';
+import type { ContractDoc, Finding, InsuranceRequirement, ThreadMessage } from '@/lib/types';
 
 export function ResultsView({
   contract,
@@ -21,6 +21,7 @@ export function ResultsView({
   versionId,
   versionNumber,
   findings,
+  insuranceRequirements = [],
   clientNotes,
   driveFileId,
   driveFolderId,
@@ -31,6 +32,7 @@ export function ResultsView({
   versionId: string;
   versionNumber: number;
   findings: Finding[];
+  insuranceRequirements?: InsuranceRequirement[];
   clientNotes?: string | null;
   driveFileId?: string | null;
   driveFolderId?: string | null;
@@ -88,7 +90,7 @@ export function ResultsView({
   }
 
   async function handleShareReportHtml() {
-    const html = generateReportHtml({ contract, findings, redlines, fileName: sourceFileName });
+    const html = generateReportHtml({ contract, findings, insuranceRequirements, redlines, fileName: sourceFileName });
     const filename = `${contract.clientName} — ${contract.projectName} review.html`;
     downloadReport(html, filename);
 
@@ -108,7 +110,7 @@ export function ResultsView({
 
   async function handleDownloadPdf() {
     const filename = `${contract.clientName} — ${contract.projectName} review.pdf`;
-    const blob = await downloadReportPdf({ contract, findings, redlines, filename, sourceFileName });
+    const blob = await downloadReportPdf({ contract, findings, insuranceRequirements, redlines, filename, sourceFileName });
 
     if (driveFolderId) {
       try {
@@ -177,6 +179,7 @@ export function ResultsView({
     <div className="space-y-6">
       <ReviewScoreBanner findings={findings} />
       <SeveritySummary findings={findings} active={filter} onChange={setFilter} />
+      <InsuranceRequirementsSection insuranceRequirements={insuranceRequirements} />
 
       <div className="flex flex-wrap items-center gap-2 border-y border-rule py-3">
         <Button variant="ghost" onClick={selectAll}>Select All</Button>
@@ -276,6 +279,28 @@ export function ResultsView({
           });
         }}
       />
+    </div>
+  );
+}
+
+function InsuranceRequirementsSection({ insuranceRequirements }: { insuranceRequirements: InsuranceRequirement[] }) {
+  if (insuranceRequirements.length === 0) return null;
+
+  return (
+    <div className="rounded-sm border border-rule bg-paper p-5">
+      <p className="mb-3 font-mono text-[11px] uppercase tracking-wide text-ink-faint">
+        Insurance requirements on file
+      </p>
+      <div className="space-y-2">
+        {insuranceRequirements.map((r, i) => (
+          <div key={i} className="border-b border-rule pb-2 last:border-0 last:pb-0">
+            <p className="font-body text-sm text-ink">
+              <span className="font-medium">{r.requirement}</span> — {r.limit}
+            </p>
+            {r.flag && <p className="mt-0.5 font-mono text-xs text-med">{r.flag}</p>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

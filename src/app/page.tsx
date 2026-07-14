@@ -21,7 +21,7 @@ import {
   getNextVersionNumber,
 } from '@/lib/firebase/firestore';
 import { STANDING_CONCERNS } from '@/lib/types';
-import type { Finding, DocType } from '@/lib/types';
+import type { Finding, InsuranceRequirement, DocType } from '@/lib/types';
 
 type Step = 'intake' | 'loading' | 'results' | 'filed' | 'error';
 
@@ -48,6 +48,7 @@ function ReviewerFlow() {
   const [step, setStep] = useState<Step>('intake');
   const [error, setError] = useState<string | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [insuranceRequirements, setInsuranceRequirements] = useState<InsuranceRequirement[]>([]);
   const [contractMeta, setContractMeta] = useState<{
     contractId: string;
     versionId: string;
@@ -83,6 +84,7 @@ function ReviewerFlow() {
       // 2. Run the standing-concerns analysis — skipped entirely when
       //    filing for reference only, since nothing needs to go to Claude.
       let newFindings: Finding[] = [];
+      let newInsurance: InsuranceRequirement[] = [];
       if (!values.skipReview) {
         const analyzeRes = await fetch('/api/review/analyze', {
           method: 'POST',
@@ -99,6 +101,7 @@ function ReviewerFlow() {
         const analyzeData = await analyzeRes.json();
         if (analyzeData.error) throw new Error(analyzeData.error);
         newFindings = analyzeData.findings;
+        newInsurance = analyzeData.insuranceRequirements ?? [];
       }
 
       // 3. Attach to the existing matter if one was picked, otherwise create
@@ -141,6 +144,7 @@ function ReviewerFlow() {
         fileName: values.file.name,
         characterCount: values.characterCount,
         findings: newFindings,
+        insuranceRequirements: newInsurance,
         deltaFromPrevious: null,
         reviewed: !values.skipReview,
         // Populated below once the Drive upload (and later, Google Docs /
@@ -241,6 +245,7 @@ function ReviewerFlow() {
       }).catch(() => {});
 
       setFindings(newFindings);
+      setInsuranceRequirements(newInsurance);
       setContractMeta({
         contractId,
         versionId,
@@ -330,6 +335,7 @@ function ReviewerFlow() {
           contract={contractMeta}
           contractId={contractMeta.contractId}
           versionId={contractMeta.versionId}
+          insuranceRequirements={insuranceRequirements}
           versionNumber={contractMeta.versionNumber}
           findings={findings}
           clientNotes={contractMeta.clientNotes}

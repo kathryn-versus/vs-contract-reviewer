@@ -3,11 +3,12 @@
 import { createElement } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { ContractReportPdf } from './ContractReportPdf';
-import type { ContractDoc, Finding } from '@/lib/types';
+import type { ContractDoc, Finding, InsuranceRequirement } from '@/lib/types';
 
 export async function downloadReportPdf(params: {
   contract: Pick<ContractDoc, 'clientName' | 'projectName' | 'projectNumber' | 'docType' | 'counterparty'>;
   findings: Finding[];
+  insuranceRequirements?: InsuranceRequirement[];
   redlines: Record<string, string>;
   filename: string;
   sourceFileName?: string | null;
@@ -15,6 +16,7 @@ export async function downloadReportPdf(params: {
   const element = createElement(ContractReportPdf, {
     contract: params.contract,
     findings: params.findings,
+    insuranceRequirements: params.insuranceRequirements ?? [],
     redlines: params.redlines,
     fileName: params.sourceFileName,
   });
