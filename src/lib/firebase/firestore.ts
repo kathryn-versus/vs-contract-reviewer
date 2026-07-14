@@ -18,7 +18,7 @@ import { deleteDoc,
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './client';
-import type { ClientDoc, ContractDoc, VersionDoc, Finding, IssueThreadDoc, ThreadMessage, UserDoc, Role } from '../types';
+import type { ClientDoc, ContractDoc, VersionDoc, Finding, IssueThreadDoc, ThreadMessage, UserDoc, Role, ExecutedAgreementDoc } from '../types';
 
 function slugify(name: string) {
   return name

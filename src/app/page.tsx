@@ -1,6 +1,6 @@
 'use client';
 
-import { listVersionsForContract, Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AuthGuard } from '@/components/layout/AuthGuard';
@@ -19,6 +19,7 @@ import {
   updateVersionDrive,
   getClient,
   getNextVersionNumber,
+  listVersionsForContract,
 } from '@/lib/firebase/firestore';
 import { STANDING_CONCERNS } from '@/lib/types';
 import type { Finding, InsuranceRequirement, DocType } from '@/lib/types';

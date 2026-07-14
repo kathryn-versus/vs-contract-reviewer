@@ -118,6 +118,7 @@ export function BatchImportView() {
           fileName: row.file.name,
           characterCount: 0,
           findings: [],
+          insuranceRequirements: [],
           deltaFromPrevious: null,
           reviewed: false,
           driveFileId: null,
