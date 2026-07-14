@@ -21,6 +21,11 @@ service cloud.firestore {
     match /clients/{clientId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+
+      match /executedAgreements/{agreementId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
     }
 
     // Contracts: signed-in users can create; only submitter or admin can read

@@ -31,7 +31,7 @@ export interface IntakeValues {
   skipReview: boolean;
 }
 
-const DOC_TYPES: DocType[] = ['MSA', 'SOW', 'MSA+SOW', 'Other'];
+const DOC_TYPES: DocType[] = ['MSA', 'SOW', 'MSA+SOW', 'Change Order', 'Other'];
 
 interface DuplicateMatch {
   contractId: string;

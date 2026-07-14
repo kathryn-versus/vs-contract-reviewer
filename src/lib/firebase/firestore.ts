@@ -1,6 +1,6 @@
 'use client';
 
-import {
+import { deleteDoc,
   collection,
   collectionGroup,
   doc,
@@ -306,4 +306,30 @@ export async function listUsers(): Promise<UserDoc[]> {
 
 export async function setUserRole(uid: string, role: Role) {
   await updateDoc(doc(db, 'users', uid), { role });
+}
+
+export async function listExecutedAgreements(clientId: string): Promise<ExecutedAgreementDoc[]> {
+  const snap = await getDocs(
+    query(collection(db, 'clients', clientId, 'executedAgreements'), orderBy('uploadedAt', 'desc'))
+  );
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Omit<ExecutedAgreementDoc, 'id'>),
+    uploadedAt: toMillis(d.data().uploadedAt),
+  }));
+}
+
+export async function addExecutedAgreement(
+  clientId: string,
+  input: Omit<ExecutedAgreementDoc, 'id' | 'uploadedAt'>
+): Promise<string> {
+  const ref = await addDoc(collection(db, 'clients', clientId, 'executedAgreements'), {
+    ...input,
+    uploadedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function deleteExecutedAgreement(clientId: string, agreementId: string): Promise<void> {
+  await deleteDoc(doc(db, 'clients', clientId, 'executedAgreements', agreementId));
 }

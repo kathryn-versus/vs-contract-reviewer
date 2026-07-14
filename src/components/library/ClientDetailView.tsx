@@ -17,9 +17,13 @@ import {
   setClientMsaFile,
   clearClientMsaFile,
   setClientNoMsa,
+  listExecutedAgreements,
+  addExecutedAgreement,
+  deleteExecutedAgreement,
 } from '@/lib/firebase/firestore';
 import { recordRecentClient } from '@/lib/recents';
-import type { ClientDoc, ContractDoc } from '@/lib/types';
+import { useAuth } from '@/hooks/useAuth';
+import type { ClientDoc, ContractDoc, DocType, ExecutedAgreementDoc } from '@/lib/types';
 
 export function ClientDetailView({ clientId }: { clientId: string }) {
   const [client, setClient] = useState<ClientDoc | null>(null);
@@ -31,6 +35,12 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [uploadingMsa, setUploadingMsa] = useState(false);
   const [msaError, setMsaError] = useState<string | null>(null);
+  const [executedAgreements, setExecutedAgreements] = useState<ExecutedAgreementDoc[]>([]);
+  const [agreementDocType, setAgreementDocType] = useState<DocType>('SOW');
+  const [agreementLabel, setAgreementLabel] = useState('');
+  const [uploadingAgreement, setUploadingAgreement] = useState(false);
+  const [agreementError, setAgreementError] = useState<string | null>(null);
+  const { user } = useAuth();
   // Set from a #matter-{id} URL hash (e.g. arriving from a Library search
   // result) — auto-expands and scrolls to that specific matter.
   const [autoExpandMatterId, setAutoExpandMatterId] = useState<string | null>(null);
@@ -42,6 +52,7 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     });
     listContractsForClient(clientId).then(setContracts);
     listClients().then(setAllClients);
+    listExecutedAgreements(clientId).then(setExecutedAgreements);
     recordRecentClient(clientId);
 
     if (typeof window !== 'undefined' && window.location.hash.startsWith('#matter-')) {
@@ -132,6 +143,43 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     if (!client) return;
     await setClientNoMsa(clientId, value);
     getClient(clientId).then(setClient);
+  }
+
+  async function handleUploadAgreement(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !client) return;
+    setUploadingAgreement(true);
+    setAgreementError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('clientName', client.name);
+      form.append('docType', agreementDocType);
+      form.append('label', agreementLabel);
+      const res = await fetch('/api/drive/upload-executed-agreement', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      await addExecutedAgreement(clientId, {
+        docType: agreementDocType,
+        label: agreementLabel.trim(),
+        driveFileId: data.driveFileId,
+        driveUrl: data.driveUrl,
+        executedDate: null,
+        uploadedBy: { name: user?.displayName ?? user?.email ?? '', email: user?.email ?? '' },
+      });
+      setAgreementLabel('');
+      listExecutedAgreements(clientId).then(setExecutedAgreements);
+    } catch (err) {
+      setAgreementError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setUploadingAgreement(false);
+    }
+  }
+
+  async function handleDeleteAgreement(agreementId: string) {
+    await deleteExecutedAgreement(clientId, agreementId);
+    setExecutedAgreements((prev) => prev.filter((a) => a.id !== agreementId));
   }
 
   return (
@@ -256,6 +304,71 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
             {savingNotes ? 'Saving…' : 'Save notes'}
           </Button>
         </div>
+      </Card>
+
+      <Card className="p-5">
+        <p className="mb-3 font-mono text-[11px] uppercase tracking-wide text-ink-faint">Executed agreements</p>
+        {executedAgreements.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {executedAgreements.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between border-b border-rule pb-2 last:border-0 last:pb-0"
+              >
+                <div>
+                  <span className="mr-2 rounded-full border border-rule px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                    {a.docType}
+                  </span>
+                  <a
+                    href={a.driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-body text-sm text-accent hover:underline"
+                  >
+                    {a.label || a.docType} ↗
+                  </a>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAgreement(a.id)}
+                  className="font-mono text-xs text-ink-faint hover:text-high"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block">
+            <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">Type</span>
+            <select
+              value={agreementDocType}
+              onChange={(e) => setAgreementDocType(e.target.value as DocType)}
+              className="border border-rule px-3 py-2 text-sm"
+            >
+              <option value="MSA">MSA</option>
+              <option value="SOW">SOW</option>
+              <option value="Change Order">Change Order</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label className="block flex-1">
+            <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">
+              Label (optional — e.g. &quot;Change Order #2&quot;)
+            </span>
+            <input
+              value={agreementLabel}
+              onChange={(e) => setAgreementLabel(e.target.value)}
+              className="w-full border border-rule px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="cursor-pointer rounded-sm border border-rule px-3 py-1.5 font-mono text-xs uppercase tracking-wide text-ink-soft hover:border-ink">
+            {uploadingAgreement ? 'Uploading…' : 'Upload executed file'}
+            <input type="file" className="hidden" onChange={handleUploadAgreement} disabled={uploadingAgreement} />
+          </label>
+        </div>
+        {agreementError && <p className="mt-2 text-sm text-high">{agreementError}</p>}
       </Card>
 
       <div className="space-y-3">

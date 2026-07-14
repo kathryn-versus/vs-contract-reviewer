@@ -37,7 +37,20 @@ export interface ClientDoc {
   createdBy: string;
 }
 
-export type DocType = 'MSA' | 'SOW' | 'MSA+SOW' | 'Other';
+export type DocType = 'MSA' | 'SOW' | 'MSA+SOW' | 'Change Order' | 'Other';
+
+export interface ExecutedAgreementDoc {
+  id: string;
+  docType: DocType;
+  // Free-text description, e.g. "Change Order #2 — Additional Deliverables"
+  // — optional since a single MSA/SOW often doesn't need one.
+  label: string;
+  driveFileId: string;
+  driveUrl: string;
+  executedDate: string | null;
+  uploadedAt: number;
+  uploadedBy: { name: string; email: string };
+}
 
 export interface SubmittedBy {
   uid: string;
