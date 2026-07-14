@@ -176,6 +176,7 @@ function ReviewerFlow() {
         form.append('clientName', client.name);
         form.append('projectName', values.projectName);
         form.append('projectNumber', values.projectNumber);
+        form.append('docType', values.docType);
         if (versionNumber > 1) form.append('versionSuffix', `v${versionNumber}`);
         const driveRes = await fetch('/api/drive/upload', { method: 'POST', body: form });
         const driveData = await driveRes.json();

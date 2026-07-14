@@ -124,6 +124,19 @@ export async function ensureDatedReviewFolder(matterFolderId: string, when: Date
   return findOrCreateFolder(folderTimestamp(when), matterFolderId);
 }
 
+/**
+ * Ensures a document-type subfolder (MSA / SOW / Change Order / etc.) exists
+ * directly under a Job's matter folder — Contract Reviews/{Client}/{Job
+ * Number — Project}/{Doc Type}/ — so multiple different documents filed
+ * under the same job (an MSA, a SOW, several Change Orders) land in their
+ * own clearly separated space instead of one flat timestamped list where
+ * it's not obvious what's what. Dated review-run folders then nest one
+ * level further inside this, per upload.
+ */
+export async function ensureDocTypeFolder(matterFolderId: string, docType: string): Promise<string> {
+  return findOrCreateFolder(docType, matterFolderId);
+}
+
 export async function uploadFileToFolder(params: {
   folderId: string;
   fileName: string;

@@ -46,7 +46,6 @@ export function TopNav() {
           {/* Admin-only links: not just hidden, not rendered at all for reviewers. */}
           {role === 'admin' && (
             <>
-              {navLink('/dashboard', 'Dashboard')}
               {navLink('/library', 'Library')}
               {navLink('/settings', 'Settings')}
             </>

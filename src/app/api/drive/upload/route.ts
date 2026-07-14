@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureMatterFolder, ensureDatedReviewFolder, uploadFileToFolder, getFolderLink } from '@/lib/drive/client';
+import { ensureMatterFolder, ensureDocTypeFolder, ensureDatedReviewFolder, uploadFileToFolder, getFolderLink } from '@/lib/drive/client';
 
 // Server-side only (brief §7: "All Drive API calls go through Next.js API
 // routes — never direct from browser"). Accepts multipart form data with the
@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     const projectName = form.get('projectName') as string | null;
     const projectNumber = form.get('projectNumber') as string | null;
     const versionSuffix = (form.get('versionSuffix') as string | null) ?? '';
+    const docType = (form.get('docType') as string | null) ?? null;
 
     if (!file || !clientName || !projectName || !projectNumber) {
       return NextResponse.json(
@@ -25,10 +26,17 @@ export async function POST(req: NextRequest) {
     // Animation") — matches how the studio refers to jobs internally.
     const projectLabel = `${projectNumber} — ${projectName}`;
     const { matterFolderId } = await ensureMatterFolder(clientName, projectLabel);
-    // Nest this review's files under a dated subfolder — Contract
-    // Reviews/{Client}/{Job Number — Project}/{YYYY-MM-DD}/ — so the source
-    // file, its Google Doc duplicate, and the report copy all land together.
-    const dateFolderId = await ensureDatedReviewFolder(matterFolderId);
+    // Nest under a doc-type subfolder first — Contract Reviews/{Client}/{Job
+    // Number — Project}/{Doc Type}/ — so an MSA, a SOW, and however many
+    // Change Orders end up filed under the same job land in clearly
+    // separated folders rather than one undifferentiated pile. Falls back
+    // to the matter folder itself if no docType was sent (keeps this route
+    // working for any caller that hasn't been updated to send one yet).
+    const docTypeFolderId = docType ? await ensureDocTypeFolder(matterFolderId, docType) : matterFolderId;
+    // Then nest THIS review's files under a dated subfolder — .../{Doc
+    // Type}/{YYYY-MM-DD HHhMMm}/ — so the source file, its Google Doc
+    // duplicate, and the report copy all land together per upload.
+    const dateFolderId = await ensureDatedReviewFolder(docTypeFolderId);
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = versionSuffix ? appendSuffix(file.name, versionSuffix) : file.name;
