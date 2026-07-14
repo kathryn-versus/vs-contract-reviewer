@@ -217,6 +217,7 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
         label: agreementLabel.trim(),
         driveFileId: data.driveFileId,
         driveUrl: data.driveUrl,
+        driveFolderUrl: data.driveFolderUrl ?? null,
         projectNumber: project?.projectNumber ?? null,
         projectName: project?.projectName ?? null,
         executedDate: null,
@@ -389,6 +390,16 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
                   >
                     {a.label || a.docType} ↗
                   </a>
+                  {a.driveFolderUrl && (
+                    <a
+                      href={a.driveFolderUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 font-mono text-[10px] text-ink-faint hover:text-ink hover:underline"
+                    >
+                      Folder ↗
+                    </a>
+                  )}
                 </div>
                 <button
                   type="button"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureClientFolder, ensureMatterFolder, ensureDocTypeFolder, uploadFileToFolder } from '@/lib/drive/client';
+import { ensureClientFolder, ensureMatterFolder, ensureDocTypeFolder, uploadFileToFolder, getFolderLink } from '@/lib/drive/client';
 
 // Uploads a fully executed/signed agreement — separate from the review
 // pipeline's versions, since an executed copy (often countersigned
@@ -41,8 +41,9 @@ export async function POST(req: NextRequest) {
       mimeType: file.type || 'application/octet-stream',
       buffer,
     });
+    const driveFolderUrl = await getFolderLink(targetFolderId);
 
-    return NextResponse.json({ driveFileId: fileId, driveUrl: webViewLink });
+    return NextResponse.json({ driveFileId: fileId, driveUrl: webViewLink, driveFolderUrl });
   } catch (err) {
     console.error('drive/upload-executed-agreement failed', err);
     return NextResponse.json(

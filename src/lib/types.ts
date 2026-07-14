@@ -47,6 +47,11 @@ export interface ExecutedAgreementDoc {
   label: string;
   driveFileId: string;
   driveUrl: string;
+  // Link to the Drive folder this was filed in — the matter's doc-type
+  // folder when a project was picked, otherwise the client's doc-type
+  // folder — so you can jump to what else is filed alongside it without
+  // having to click through from the file itself.
+  driveFolderUrl: string | null;
   // Which job this is filed under — required for SOW/Change Order (always
   // job-specific), null for MSA/Other left at the client level (an MSA
   // typically governs many jobs, not just one).
