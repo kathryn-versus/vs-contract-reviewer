@@ -41,6 +41,23 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   const [uploadingAgreement, setUploadingAgreement] = useState(false);
   const [agreementError, setAgreementError] = useState<string | null>(null);
   const { user } = useAuth();
+
+  // Auto-suggest the next Change Order number so multiple change orders for
+  // the same client don't collide or skip numbers — still editable/
+  // overridable before upload, and only fires when switching TO Change
+  // Order with an empty label (never overwrites something already typed).
+  // Clears the suggestion back out if you switch to a different type
+  // without having edited it, so a stale "Change Order #3" doesn't linger
+  // on an MSA upload.
+  useEffect(() => {
+    if (agreementDocType === 'Change Order') {
+      if (agreementLabel.trim() !== '') return;
+      const count = executedAgreements.filter((a) => a.docType === 'Change Order').length;
+      setAgreementLabel(`Change Order #${count + 1}`);
+    } else if (/^Change Order #\d+$/.test(agreementLabel)) {
+      setAgreementLabel('');
+    }
+  }, [agreementDocType, executedAgreements]);
   // Set from a #matter-{id} URL hash (e.g. arriving from a Library search
   // result) — auto-expands and scrolls to that specific matter.
   const [autoExpandMatterId, setAutoExpandMatterId] = useState<string | null>(null);
