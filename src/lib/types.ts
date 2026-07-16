@@ -101,6 +101,24 @@ export interface Finding {
   // version doc — lets a past review be reopened with its drafted redlines
   // intact instead of needing them redrafted from scratch.
   redlineText?: string;
+  // Only set on a delta-aware review (a later version of a matter that's
+  // already been reviewed once) — "new" means this issue wasn't flagged
+  // last round, "carried_over" means it was flagged before and is still
+  // unresolved in this draft. Undefined on a first-time review, since
+  // there's nothing to compare against.
+  deltaStatus?: 'new' | 'carried_over';
+}
+
+// A prior round's finding that this version's delta-aware review confirmed
+// is now resolved — kept separate from Finding (not still "open") so the
+// results view can show what got fixed without it cluttering the active
+// findings list.
+export interface ResolvedFinding {
+  uid: string;
+  concernId: number;
+  concernLabel: string;
+  issueTitle: string;
+  resolutionNote: string;
 }
 
 export interface InsuranceRequirement {
@@ -122,6 +140,10 @@ export interface VersionDoc {
   characterCount: number;
   findings: Finding[];
   insuranceRequirements: InsuranceRequirement[];
+  // Prior findings this version's delta-aware review confirmed are now
+  // resolved. Optional — absent on versions created before this existed,
+  // and never populated on a first-time review (nothing to resolve yet).
+  resolvedFindings?: ResolvedFinding[];
   deltaFromPrevious: string | null;
   // Per-version Drive links — kept on each version (not just the top-level
   // ContractDoc) so version history survives later uploads instead of being

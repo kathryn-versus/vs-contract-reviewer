@@ -48,6 +48,14 @@ export function IssueCard({
         <button className="flex-1 text-left" onClick={() => setExpanded((v) => !v)}>
           <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">
             Concern {finding.concernId} · {finding.concernLabel}
+            {finding.deltaStatus === 'new' && (
+              <span className="ml-2 rounded-full bg-accent/15 px-1.5 py-0.5 text-accent">New</span>
+            )}
+            {finding.deltaStatus === 'carried_over' && (
+              <span className="ml-2 rounded-full border border-rule px-1.5 py-0.5 text-ink-faint">
+                Still open
+              </span>
+            )}
           </p>
           <p className="mt-1.5 font-display text-base text-ink">{finding.issueTitle}</p>
           {finding.location && (

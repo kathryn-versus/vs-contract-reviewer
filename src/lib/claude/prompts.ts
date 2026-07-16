@@ -1,4 +1,4 @@
-import { STANDING_CONCERNS, type DocType } from '@/lib/types';
+import { STANDING_CONCERNS, type DocType, type Finding } from '@/lib/types';
 
 export interface AnalysisPromptInput {
   docType: DocType;
@@ -7,6 +7,14 @@ export interface AnalysisPromptInput {
   clientNotes?: string | null;
   msaContext?: string | null;
   documentText: string; // truncated to 100,000 chars by the caller
+  // Passing both of these switches this from a fresh full review into a
+  // delta-aware one: Claude is asked to confirm which of the previous
+  // round's findings are now resolved versus still open in this draft, and
+  // to only flag genuinely new issues — rather than re-deriving the whole
+  // findings list from scratch and leaving it to the reviewer to work out
+  // what's actually different from last time.
+  previousDocumentText?: string | null;
+  previousFindings?: Finding[] | null;
 }
 
 const STUDIO_IDENTITY =
@@ -16,7 +24,18 @@ const STUDIO_IDENTITY =
   "studio's standing negotiation positions.";
 
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
-  const { docType, counterparty, clientName, clientNotes, msaContext, documentText } = input;
+  const {
+    docType,
+    counterparty,
+    clientName,
+    clientNotes,
+    msaContext,
+    documentText,
+    previousDocumentText,
+    previousFindings,
+  } = input;
+
+  const isDeltaReview = Boolean(previousDocumentText && previousFindings && previousFindings.length >= 0 && previousDocumentText.trim());
 
   // Previously, msaContext was ONLY used to suppress false positives ("don't
   // re-flag what the MSA already settled") — there was no instruction to
@@ -59,6 +78,31 @@ ${
   msaContext
     ? `GOVERNING MSA (excerpt, pulled automatically from this client's Drive folder — use it both as background for what's already been negotiated at the master-agreement level (a SOW that simply incorporates MSA terms is not itself an issue) AND as the comparison document for the "MSA alignment" concern below):\n"""\n${msaContext}\n"""\n`
     : ''
+}${
+  isDeltaReview
+    ? `THIS IS A RE-REVIEW — a previous round of this same document was already reviewed. Here is what was flagged last time, and the previous draft's text for comparison:
+
+PREVIOUS ROUND'S FINDINGS
+${JSON.stringify(
+        previousFindings!.map((f) => ({
+          uid: f.uid,
+          concernId: f.concernId,
+          concernLabel: f.concernLabel,
+          severity: f.severity,
+          issueTitle: f.issueTitle,
+          quote: f.quote,
+          location: f.location,
+        })),
+        null,
+        2
+      )}
+
+PREVIOUS DRAFT TEXT
+"""
+${previousDocumentText!.slice(0, 100_000)}
+"""
+`
+    : ''
 }
 THE STANDING CONCERNS
 Assess the document against exactly these ${concernsForPrompt.length} concerns. Only return
@@ -83,7 +127,28 @@ INSTRUCTIONS
 - recommendation: 1-2 sentences MAXIMUM. One clear, concrete ask — not a
   menu of options.
 - Note the section/location of the clause if identifiable (e.g. "Section 8.2").
-- Do not invent issues that aren't supported by the text.
+- Do not invent issues that aren't supported by the text.${
+  isDeltaReview
+    ? `
+
+DELTA REVIEW — this is a re-review of a revised draft, not a first pass.
+- For EVERY item in the previous round's findings above, check the new
+  document text: has the flagged language changed in a way that actually
+  addresses the concern? If yes, do NOT include it in "findings" — instead
+  add it to "resolvedFindings" with a one-sentence "resolutionNote"
+  describing what changed.
+- If the flagged language is unchanged, or changed only cosmetically and the
+  underlying issue still stands, include it again in "findings" with
+  "deltaStatus": "carried_over" — keep the same severity/analysis/
+  recommendation unless the surrounding context changed enough to warrant
+  updating them.
+- Then check the rest of the document — including parts that didn't change
+  — for issues not already covered by a carried-over finding. Add these to
+  "findings" with "deltaStatus": "new".
+- Do not list the same underlying issue in both "findings" and
+  "resolvedFindings".`
+    : ''
+}
 
 INSURANCE REQUIREMENTS AUDIT
 Separately from the standing concerns above, scan the document for every
@@ -110,9 +175,21 @@ after. Shape:
       "quote": string,
       "location": string,
       "analysis": string,
-      "recommendation": string
+      "recommendation": string${isDeltaReview ? ',\n      "deltaStatus": "new" | "carried_over"' : ''}
     }
-  ],
+  ],${
+    isDeltaReview
+      ? `
+  "resolvedFindings": [
+    {
+      "concernId": number,
+      "concernLabel": string,
+      "issueTitle": string,
+      "resolutionNote": string
+    }
+  ],`
+      : ''
+  }
   "insuranceRequirements": [
     {
       "requirement": string,
@@ -124,7 +201,9 @@ after. Shape:
   ]
 }
 If there are no issues at all, findings should be []. If the document has no
-insurance requirements, insuranceRequirements should be [].
+insurance requirements, insuranceRequirements should be [].${
+    isDeltaReview ? ' If nothing from the previous round was resolved, resolvedFindings should be [].' : ''
+  }
 
 DOCUMENT TEXT
 """

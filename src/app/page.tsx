@@ -22,7 +22,7 @@ import {
   listVersionsForContract,
 } from '@/lib/firebase/firestore';
 import { STANDING_CONCERNS } from '@/lib/types';
-import type { Finding, InsuranceRequirement, DocType } from '@/lib/types';
+import type { Finding, InsuranceRequirement, ResolvedFinding, DocType } from '@/lib/types';
 
 type Step = 'intake' | 'loading' | 'results' | 'filed' | 'error';
 
@@ -50,6 +50,7 @@ function ReviewerFlow() {
   const [error, setError] = useState<string | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [insuranceRequirements, setInsuranceRequirements] = useState<InsuranceRequirement[]>([]);
+  const [resolvedFindings, setResolvedFindings] = useState<ResolvedFinding[]>([]);
   const [contractMeta, setContractMeta] = useState<{
     contractId: string;
     versionId: string;
@@ -82,10 +83,30 @@ function ReviewerFlow() {
       const client = await getOrCreateClient(values.clientName, user!.email ?? '');
       const clientDoc = await getClient(client.id);
 
-      // 2. Run the standing-concerns analysis — skipped entirely when
+      // 2. Determine whether this is a new version of an existing matter —
+      //    resolved using existingContractId directly (a brand-new matter's
+      //    contractId doesn't exist yet) so the prior version, if any, is
+      //    known BEFORE running analysis below.
+      const isExistingMatter = Boolean(values.existingContractId);
+      let priorLatest: Awaited<ReturnType<typeof listVersionsForContract>>[number] | null = null;
+      if (isExistingMatter) {
+        const priorVersions = await listVersionsForContract(values.existingContractId!);
+        priorLatest = priorVersions.reduce<typeof priorVersions[number] | null>(
+          (max, v) => (!max || v.versionNumber > max.versionNumber ? v : max),
+          null
+        );
+      }
+      const previousDriveFileId = priorLatest?.driveFileId ?? null;
+
+      // 3. Run the standing-concerns analysis — skipped entirely when
       //    filing for reference only, since nothing needs to go to Claude.
+      //    When there's a previous version on file, passing its Drive file
+      //    and findings switches this into a delta-aware review: Claude
+      //    confirms what's resolved vs. still open and only flags what's
+      //    genuinely new, instead of a blind fresh pass every time.
       let newFindings: Finding[] = [];
       let newInsurance: InsuranceRequirement[] = [];
+      let newResolvedFindings: ResolvedFinding[] = [];
       if (!values.skipReview) {
         const analyzeRes = await fetch('/api/review/analyze', {
           method: 'POST',
@@ -97,17 +118,19 @@ function ReviewerFlow() {
             clientId: client.id,
             clientNotes: clientDoc?.notes || null,
             documentText: values.documentText,
+            previousDriveFileId,
+            previousFindings: priorLatest?.findings ?? null,
           }),
         });
         const analyzeData = await analyzeRes.json();
         if (analyzeData.error) throw new Error(analyzeData.error);
         newFindings = analyzeData.findings;
         newInsurance = analyzeData.insuranceRequirements ?? [];
+        newResolvedFindings = analyzeData.resolvedFindings ?? [];
       }
 
-      // 3. Attach to the existing matter if one was picked, otherwise create
+      // 4. Attach to the existing matter if one was picked, otherwise create
       //    a new contract + first version record in Firestore.
-      const isExistingMatter = Boolean(values.existingContractId);
       const contractId = isExistingMatter
         ? values.existingContractId!
         : await createContract({
@@ -124,20 +147,6 @@ function ReviewerFlow() {
             driveFolderId: null,
           });
 
-      // Grab the current latest version's Drive file (if any) BEFORE adding
-      // the new version below, so there's something to diff the new upload
-      // against. Only relevant for an existing matter — a brand-new matter
-      // has nothing prior to compare to.
-      let previousDriveFileId: string | null = null;
-      if (isExistingMatter) {
-        const priorVersions = await listVersionsForContract(contractId);
-        const priorLatest = priorVersions.reduce<typeof priorVersions[number] | null>(
-          (max, v) => (!max || v.versionNumber > max.versionNumber ? v : max),
-          null
-        );
-        previousDriveFileId = priorLatest?.driveFileId ?? null;
-      }
-
       const versionNumber = isExistingMatter ? await getNextVersionNumber(contractId) : 1;
       const versionId = await addVersion(contractId, {
         versionNumber,
@@ -146,6 +155,7 @@ function ReviewerFlow() {
         characterCount: values.characterCount,
         findings: newFindings,
         insuranceRequirements: newInsurance,
+        resolvedFindings: newResolvedFindings,
         deltaFromPrevious: null,
         reviewed: !values.skipReview,
         // Populated below once the Drive upload (and later, Google Docs /
@@ -160,7 +170,7 @@ function ReviewerFlow() {
         reportPdfUrl: null,
       });
 
-      // 4. Upload the source file to Drive (server-side route). For a second
+      // 5. Upload the source file to Drive (server-side route). For a second
       //    (or later) version of an existing matter, suffix the filename so
       //    it doesn't collide with the prior version already in that folder.
       //    Links are saved on BOTH the contract (a "latest version" pointer,
@@ -224,7 +234,7 @@ function ReviewerFlow() {
         return;
       }
 
-      // 5. Fire the email notification (recipients controlled server-side by env vars).
+      // 6. Fire the email notification (recipients controlled server-side by env vars).
       const counts = {
         high: newFindings.filter((f) => f.severity === 'high').length,
         medium: newFindings.filter((f) => f.severity === 'medium').length,
@@ -248,6 +258,7 @@ function ReviewerFlow() {
 
       setFindings(newFindings);
       setInsuranceRequirements(newInsurance);
+      setResolvedFindings(newResolvedFindings);
       setContractMeta({
         contractId,
         versionId,
@@ -338,6 +349,7 @@ function ReviewerFlow() {
           contractId={contractMeta.contractId}
           versionId={contractMeta.versionId}
           insuranceRequirements={insuranceRequirements}
+          resolvedFindings={resolvedFindings}
           versionNumber={contractMeta.versionNumber}
           findings={findings}
           clientNotes={contractMeta.clientNotes}

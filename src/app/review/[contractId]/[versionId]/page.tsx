@@ -123,6 +123,7 @@ function PastReviewView({ contractId, versionId }: { contractId: string; version
         versionNumber={version.versionNumber}
         findings={version.findings}
         insuranceRequirements={version.insuranceRequirements ?? []}
+        resolvedFindings={version.resolvedFindings ?? []}
         clientNotes={clientNotes}
         driveFileId={version.driveFileId}
         driveFolderId={version.driveFolderId}

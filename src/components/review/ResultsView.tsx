@@ -13,7 +13,7 @@ import { duplicateContractToGoogleDocs } from '@/lib/report/googleDocsHandoff';
 import { uploadReportToDrive } from '@/lib/report/uploadToDrive';
 import { addRedlineCommentsToDoc } from '@/lib/report/addRedlineComments';
 import { appendIssueThreadMessages, updateVersionDrive, updateVersionFindings } from '@/lib/firebase/firestore';
-import type { ContractDoc, Finding, InsuranceRequirement, ThreadMessage } from '@/lib/types';
+import type { ContractDoc, Finding, InsuranceRequirement, ResolvedFinding, ThreadMessage } from '@/lib/types';
 
 export function ResultsView({
   contract,
@@ -22,6 +22,7 @@ export function ResultsView({
   versionNumber,
   findings,
   insuranceRequirements = [],
+  resolvedFindings = [],
   clientNotes,
   driveFileId,
   driveFolderId,
@@ -33,6 +34,7 @@ export function ResultsView({
   versionNumber: number;
   findings: Finding[];
   insuranceRequirements?: InsuranceRequirement[];
+  resolvedFindings?: ResolvedFinding[];
   clientNotes?: string | null;
   driveFileId?: string | null;
   driveFolderId?: string | null;
@@ -180,6 +182,7 @@ export function ResultsView({
       <ReviewScoreBanner findings={findings} />
       <SeveritySummary findings={findings} active={filter} onChange={setFilter} />
       <InsuranceRequirementsSection insuranceRequirements={insuranceRequirements} />
+      <ResolvedFindingsSection resolvedFindings={resolvedFindings} />
 
       <div className="flex flex-wrap items-center gap-2 border-y border-rule py-3">
         <Button variant="ghost" onClick={selectAll}>Select All</Button>
@@ -279,6 +282,31 @@ export function ResultsView({
           });
         }}
       />
+    </div>
+  );
+}
+
+function ResolvedFindingsSection({ resolvedFindings }: { resolvedFindings: ResolvedFinding[] }) {
+  if (resolvedFindings.length === 0) return null;
+
+  return (
+    <div className="rounded-sm border border-rule bg-paper p-5">
+      <p className="mb-3 font-mono text-[11px] uppercase tracking-wide text-ink-faint">
+        Resolved since last round ({resolvedFindings.length})
+      </p>
+      <div className="space-y-2">
+        {resolvedFindings.map((r) => (
+          <div key={r.uid} className="border-b border-rule pb-2 last:border-0 last:pb-0">
+            <p className="font-body text-sm text-ink">
+              <span className="font-medium">{r.issueTitle}</span>{' '}
+              <span className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                Concern {r.concernId} · {r.concernLabel}
+              </span>
+            </p>
+            <p className="mt-0.5 font-mono text-xs text-ink-faint">{r.resolutionNote}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
