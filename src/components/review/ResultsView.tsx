@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { SeveritySummary, type FilterValue } from './SeveritySummary';
 import { ReviewScoreBanner } from './ReviewScoreBanner';
 import { IssueCard } from './IssueCard';
+import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { PrioritizeDrawer } from './PrioritizeDrawer';
 import { RedlineDrawer } from './RedlineDrawer';
 import { generateReportHtml, downloadReport } from '@/lib/report/generateReport';
@@ -177,10 +178,24 @@ export function ResultsView({
   const googleDocsDisabled = !driveFileId || !driveFolderId || docsBusy;
   const addCommentsDisabled = !googleDocId || redlinedFindings.length === 0 || commentsBusy;
 
+  // Same idea as the "At a glance" table already on the PDF/HTML exports —
+  // a numbered, severity-tagged jump list at the top of the results, so a
+  // reviewer can scan what was found before scrolling through every card.
+  // Always jumps against the FULL findings list regardless of the current
+  // severity filter, so a row is never a dead link — switches the filter
+  // back to "all" first if something's filtered out, then scrolls.
+  function handleJumpToIssue(uid: string) {
+    setFilter('all');
+    requestAnimationFrame(() => {
+      document.getElementById(`issue-${uid}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
   return (
     <div className="space-y-6">
       <ReviewScoreBanner findings={findings} />
       <SeveritySummary findings={findings} active={filter} onChange={setFilter} />
+      <AtAGlanceSection findings={findings} onJump={handleJumpToIssue} />
       <InsuranceRequirementsSection insuranceRequirements={insuranceRequirements} />
       <ResolvedFindingsSection resolvedFindings={resolvedFindings} />
 
@@ -249,17 +264,18 @@ export function ResultsView({
           </p>
         )}
         {visible.map((f, i) => (
-          <IssueCard
-            key={f.uid}
-            index={i}
-            finding={f}
-            selected={selected.has(f.uid)}
-            onToggleSelect={() => toggle(f.uid)}
-            clientNotes={clientNotes}
-            threadMessages={threads[f.uid] ?? []}
-            onPersistThread={(msgs) => persistThread(f.uid, msgs)}
-            redlineText={redlines[f.uid]}
-          />
+          <div key={f.uid} id={`issue-${f.uid}`} className="scroll-mt-20">
+            <IssueCard
+              index={i}
+              finding={f}
+              selected={selected.has(f.uid)}
+              onToggleSelect={() => toggle(f.uid)}
+              clientNotes={clientNotes}
+              threadMessages={threads[f.uid] ?? []}
+              onPersistThread={(msgs) => persistThread(f.uid, msgs)}
+              redlineText={redlines[f.uid]}
+            />
+          </div>
         ))}
       </div>
 
@@ -282,6 +298,32 @@ export function ResultsView({
           });
         }}
       />
+    </div>
+  );
+}
+
+function AtAGlanceSection({ findings, onJump }: { findings: Finding[]; onJump: (uid: string) => void }) {
+  if (findings.length === 0) return null;
+
+  return (
+    <div className="rounded-sm border border-rule bg-paper p-5">
+      <p className="mb-3 font-mono text-[11px] uppercase tracking-wide text-ink-faint">
+        At a glance — click any row to jump to full detail
+      </p>
+      <div>
+        {findings.map((f, i) => (
+          <button
+            key={f.uid}
+            type="button"
+            onClick={() => onJump(f.uid)}
+            className="flex w-full items-center gap-3 border-b border-rule py-2 text-left last:border-0 hover:bg-accent-soft/20"
+          >
+            <span className="w-6 font-mono text-xs text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
+            <SeverityBadge severity={f.severity} />
+            <span className="flex-1 font-body text-sm text-ink">{f.issueTitle}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
