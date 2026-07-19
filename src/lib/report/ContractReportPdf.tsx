@@ -82,6 +82,10 @@ const styles = StyleSheet.create({
   execSevPill: { borderWidth: 1, borderRadius: 8, paddingVertical: 1, paddingHorizontal: 6, marginRight: 8 },
   execSevText: { fontSize: 7, fontFamily: 'Courier-Bold', textTransform: 'uppercase' },
   execTitle: { fontSize: 9, fontFamily: 'Helvetica', flex: 1 },
+
+  insuranceRow: { borderBottomWidth: 1, borderBottomColor: '#DEDDD6', paddingVertical: 6 },
+  insuranceTitle: { fontSize: 9, fontFamily: 'Helvetica', lineHeight: 1.35 },
+  insuranceFlag: { fontSize: 8, fontFamily: 'Helvetica', color: '#C97A22', marginTop: 2, lineHeight: 1.35 },
 });
 
 export function ContractReportPdf({
@@ -163,15 +167,11 @@ export function ContractReportPdf({
           <View style={styles.execSummary}>
             <Text style={styles.execSummaryLabel}>Insurance requirements on file</Text>
             {insuranceRequirements.map((r, i) => (
-              <View key={i} style={styles.execRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.execTitle}>
-                    {r.requirement} — {r.limit}
-                  </Text>
-                  {r.flag && (
-                    <Text style={[styles.execTitle, { color: '#C97A22', fontSize: 8 }]}>{r.flag}</Text>
-                  )}
-                </View>
+              <View key={i} style={styles.insuranceRow}>
+                <Text style={styles.insuranceTitle}>
+                  {r.requirement} — {r.limit}
+                </Text>
+                {r.flag && <Text style={styles.insuranceFlag}>{r.flag}</Text>}
               </View>
             ))}
           </View>
