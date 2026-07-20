@@ -52,6 +52,13 @@ export interface ExecutedAgreementDoc {
   // folder — so you can jump to what else is filed alongside it without
   // having to click through from the file itself.
   driveFolderUrl: string | null;
+  // The matter (ContractDoc) this executed file is filed under — set
+  // whenever a project is picked, creating a new matter first if the
+  // project didn't have one yet. Null only for a client-level MSA/Other
+  // filed with no project. This is what lets the Library and client page
+  // actually connect an executed agreement to its matter instead of the
+  // two just sitting next to each other as unrelated records.
+  contractId: string | null;
   // Which job this is filed under — required for SOW/Change Order (always
   // job-specific), null for MSA/Other left at the client level (an MSA
   // typically governs many jobs, not just one).

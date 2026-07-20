@@ -20,6 +20,8 @@ import {
   listExecutedAgreements,
   addExecutedAgreement,
   deleteExecutedAgreement,
+  createContract,
+  addVersion,
 } from '@/lib/firebase/firestore';
 import { recordRecentClient } from '@/lib/recents';
 import { useAuth } from '@/hooks/useAuth';
@@ -200,6 +202,17 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     setUploadingAgreement(true);
     setAgreementError(null);
     try {
+      // Resolve which matter this belongs to — matched by project number +
+      // name against this client's existing matters — so the executed file
+      // is connected to Matters/the matter count instead of floating as a
+      // disconnected record.
+      const existingMatter = project
+        ? contracts.find(
+            (c) => c.projectNumber === project.projectNumber && c.projectName === project.projectName
+          )
+        : null;
+      let contractId: string | null = existingMatter?.id ?? null;
+
       const form = new FormData();
       form.append('file', file);
       form.append('clientName', client.name);
@@ -212,12 +225,58 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
       const res = await fetch('/api/drive/upload-executed-agreement', { method: 'POST', body: form });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+
+      // A brand-new project typed in above has no matter yet — create one
+      // now (plus a first, unreviewed version pointing at this same file)
+      // so it shows up under Matters and counts correctly, instead of only
+      // existing as an executed-agreement record with nowhere to attach.
+      if (project && !contractId) {
+        contractId = await createContract({
+          clientId,
+          clientName: client.name,
+          projectName: project.projectName,
+          projectNumber: project.projectNumber,
+          docType: agreementDocType,
+          counterparty: client.name,
+          submittedBy: {
+            uid: user?.uid ?? '',
+            name: user?.displayName ?? user?.email ?? '',
+            email: user?.email ?? '',
+          },
+          driveFileId: data.driveFileId ?? null,
+          driveUrl: data.driveUrl ?? null,
+          driveFolderUrl: data.driveFolderUrl ?? null,
+          driveFolderId: null,
+        });
+        await addVersion(contractId, {
+          versionNumber: 1,
+          uploadedBy: { name: user?.displayName ?? user?.email ?? '', email: user?.email ?? '' },
+          fileName: file.name,
+          characterCount: 0,
+          findings: [],
+          insuranceRequirements: [],
+          resolvedFindings: [],
+          deltaFromPrevious: null,
+          reviewed: false,
+          driveFileId: data.driveFileId ?? null,
+          driveUrl: data.driveUrl ?? null,
+          driveFolderId: null,
+          driveFolderUrl: data.driveFolderUrl ?? null,
+          googleDocId: null,
+          googleDocUrl: null,
+          reportHtmlUrl: null,
+          reportPdfUrl: null,
+        });
+        listContractsForClient(clientId).then(setContracts);
+      }
+
       await addExecutedAgreement(clientId, {
         docType: agreementDocType,
         label: agreementLabel.trim(),
         driveFileId: data.driveFileId,
         driveUrl: data.driveUrl,
         driveFolderUrl: data.driveFolderUrl ?? null,
+        contractId,
         projectNumber: project?.projectNumber ?? null,
         projectName: project?.projectName ?? null,
         executedDate: null,
@@ -378,9 +437,18 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
                     {a.docType}
                   </span>
                   {a.projectNumber && (
-                    <span className="mr-2 font-mono text-[10px] text-ink-faint">
-                      {a.projectNumber} — {a.projectName}
-                    </span>
+                    a.contractId ? (
+                      <a
+                        href={`#matter-${a.contractId}`}
+                        className="mr-2 font-mono text-[10px] text-ink-faint hover:text-ink hover:underline"
+                      >
+                        {a.projectNumber} — {a.projectName}
+                      </a>
+                    ) : (
+                      <span className="mr-2 font-mono text-[10px] text-ink-faint">
+                        {a.projectNumber} — {a.projectName}
+                      </span>
+                    )
                   )}
                   <a
                     href={a.driveUrl}

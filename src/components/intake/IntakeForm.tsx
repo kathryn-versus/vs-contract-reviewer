@@ -29,6 +29,10 @@ export interface IntakeValues {
    * Drive and tracks it as a matter for reference (e.g. an already-executed
    * contract, an amendment, an insurance cert). */
   skipReview: boolean;
+  /** When true (only meaningful alongside skipReview), also records this as
+   * an executed agreement on the client — same file, same Drive location —
+   * so it shows up in that client's Executed Agreements list too. */
+  markExecuted: boolean;
 }
 
 const DOC_TYPES: DocType[] = ['MSA', 'SOW', 'MSA+SOW', 'Change Order', 'Other'];
@@ -70,6 +74,7 @@ export function IntakeForm({
   // a reviewer has to actively click "Run Claude review" to opt into
   // analysis, rather than the other way around.
   const [skipReview, setSkipReview] = useState(true);
+  const [markExecuted, setMarkExecuted] = useState(false);
 
   // Job picker state: either searching, attached to an existing matter, or
   // filling in the two fields for a brand-new one.
@@ -233,6 +238,18 @@ export function IntakeForm({
           {user.displayName ?? user.email} · {user.email}
         </Chip>
       </div>
+      {skipReview && (
+        <div className="mb-6 flex justify-center">
+          <label className="flex items-center gap-1.5 font-mono text-xs text-ink-faint">
+            <input
+              type="checkbox"
+              checked={markExecuted}
+              onChange={(e) => setMarkExecuted(e.target.checked)}
+            />
+            This is a fully executed / signed copy — also file it under Executed Agreements for this client
+          </label>
+        </div>
+      )}
       <div className="space-y-5 rounded-sm border border-rule bg-paper p-6">
         <Field label="Client">
           <Combobox
@@ -381,10 +398,21 @@ export function IntakeForm({
               characterCount: characterCount ?? 0,
               existingContractId: selectedContractId ?? undefined,
               skipReview,
+              markExecuted: skipReview && markExecuted,
             })
           }
         >
-          {submitting ? (skipReview ? 'Filing…' : 'Running review…') : skipReview ? 'File for reference' : 'Run Review'}
+          {submitting
+            ? skipReview
+              ? markExecuted
+                ? 'Filing as executed…'
+                : 'Filing…'
+              : 'Running review…'
+            : skipReview
+              ? markExecuted
+                ? 'File as executed'
+                : 'File for reference'
+              : 'Run Review'}
         </Button>
       </div>
       <style jsx global>{`

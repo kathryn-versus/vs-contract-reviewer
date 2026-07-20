@@ -8,12 +8,13 @@ import { subscribeClients, getOrCreateClient, ensureClientDriveFolder } from '@/
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getRecentClientIds } from '@/lib/recents';
-import type { ClientDoc, ContractDoc } from '@/lib/types';
+import type { ClientDoc, ContractDoc, ExecutedAgreementDoc } from '@/lib/types';
 
 export function ClientListView() {
   const { user } = useAuth();
   const [clients, setClients] = useState<ClientDoc[]>([]);
   const [contractsByClient, setContractsByClient] = useState<Record<string, ContractDoc[]>>({});
+  const [executedByClient, setExecutedByClient] = useState<Record<string, ExecutedAgreementDoc[]>>({});
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -39,6 +40,27 @@ export function ClientListView() {
         grouped[c.clientId].push(c);
       });
       setContractsByClient(grouped);
+    })().catch(() => {});
+  }, []);
+
+  // Same one-shot fetch-and-group approach as contracts above, but via a
+  // collectionGroup query since executed agreements live in a per-client
+  // subcollection (clients/{clientId}/executedAgreements) rather than a
+  // top-level one — the client id comes off each doc's own path
+  // (ref.parent.parent), not a stored field.
+  useEffect(() => {
+    (async () => {
+      const { collectionGroup, getDocs: gd } = await import('firebase/firestore');
+      const snap = await gd(collectionGroup(db, 'executedAgreements'));
+      const grouped: Record<string, ExecutedAgreementDoc[]> = {};
+      snap.docs.forEach((d) => {
+        const clientId = d.ref.parent.parent?.id;
+        if (!clientId) return;
+        const data = d.data() as Omit<ExecutedAgreementDoc, 'id'>;
+        grouped[clientId] = grouped[clientId] || [];
+        grouped[clientId].push({ id: d.id, ...data });
+      });
+      setExecutedByClient(grouped);
     })().catch(() => {});
   }, []);
 
@@ -163,6 +185,9 @@ export function ClientListView() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((client) => {
           const matters = contractsByClient[client.id] ?? [];
+          const executed = executedByClient[client.id] ?? [];
+          const executedContractIds = new Set(executed.map((e) => e.contractId).filter(Boolean));
+          const openMatters = matters.filter((m) => !executedContractIds.has(m.id));
           const mostRecent = matters[0]?.createdAt;
           return (
             <Link key={client.id} href={`/library/${client.id}`}>
@@ -170,6 +195,8 @@ export function ClientListView() {
                 <p className="font-display text-lg text-ink">{client.name}</p>
                 <p className="mt-1 font-mono text-xs text-ink-faint">
                   {matters.length} matter{matters.length === 1 ? '' : 's'}
+                  {executed.length > 0 && ` · ${executed.length} executed`}
+                  {matters.length > 0 && openMatters.length > 0 && ` · ${openMatters.length} open`}
                 </p>
                 <p className="mt-1 font-mono text-xs text-ink-faint">
                   {mostRecent ? `Last upload ${new Date(mostRecent).toLocaleDateString()}` : 'No uploads yet'}

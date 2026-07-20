@@ -20,6 +20,7 @@ import {
   getClient,
   getNextVersionNumber,
   listVersionsForContract,
+  addExecutedAgreement,
 } from '@/lib/firebase/firestore';
 import { STANDING_CONCERNS } from '@/lib/types';
 import type { Finding, InsuranceRequirement, ResolvedFinding, DocType } from '@/lib/types';
@@ -71,6 +72,7 @@ function ReviewerFlow() {
     projectName: string;
     projectNumber: string;
     driveFolderUrl: string | null;
+    markExecuted: boolean;
   } | null>(null);
 
   if (!user) return null;
@@ -178,6 +180,7 @@ function ReviewerFlow() {
       //    (so the Library can show correct links for every past version,
       //    not just whichever was uploaded most recently).
       let driveFileId: string | null = null;
+      let driveUrl: string | null = null;
       let driveFolderId: string | null = null;
       let driveFolderUrl: string | null = null;
       try {
@@ -199,11 +202,36 @@ function ReviewerFlow() {
             driveFolderUrl: driveData.driveFolderUrl ?? null,
           });
           driveFileId = driveData.driveFileId ?? null;
+          driveUrl = driveData.driveUrl ?? null;
           driveFolderId = driveData.driveFolderId ?? null;
           driveFolderUrl = driveData.driveFolderUrl ?? null;
         }
       } catch {
         // Drive failures shouldn't block the reviewer from seeing results.
+      }
+
+      // Flagged as a fully executed/signed copy — record it as an executed
+      // agreement on the client too, reusing the SAME Drive file/location
+      // just uploaded above rather than uploading a second copy through the
+      // separate executed-agreement route. Non-fatal: a failure here
+      // shouldn't block filing from completing.
+      if (values.markExecuted && values.skipReview && driveFileId) {
+        try {
+          await addExecutedAgreement(client.id, {
+            docType: values.docType,
+            label: '',
+            driveFileId,
+            driveUrl: driveUrl ?? '',
+            driveFolderUrl,
+            contractId,
+            projectNumber: values.projectNumber,
+            projectName: values.projectName,
+            executedDate: null,
+            uploadedBy: { name: user!.displayName ?? user!.email ?? '', email: user!.email ?? '' },
+          });
+        } catch {
+          // Non-fatal — the matter/version itself already filed successfully.
+        }
       }
 
       // Fire-and-forget: compare this version's text against the previous
@@ -229,6 +257,7 @@ function ReviewerFlow() {
           projectName: values.projectName,
           projectNumber: values.projectNumber,
           driveFolderUrl,
+          markExecuted: values.markExecuted && values.skipReview,
         });
         setStep('filed');
         return;
@@ -304,6 +333,7 @@ function ReviewerFlow() {
         <p className="mt-3 font-body text-sm text-ink-soft">
           {filedInfo.projectName} ({filedInfo.projectNumber}) was saved to Drive and filed under{' '}
           {filedInfo.clientName} — no Claude review was run.
+          {filedInfo.markExecuted ? ' Also added to this client\'s Executed Agreements.' : ''}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           {filedInfo.driveFolderUrl && (
