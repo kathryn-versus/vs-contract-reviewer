@@ -219,7 +219,7 @@ export function ResultsView({
           disabled={googleDocsDisabled}
           title={
             !driveFileId || !driveFolderId
-              ? 'Waiting on the Drive upload to finish for this matter'
+              ? 'Waiting on the Drive upload to finish for this contract'
               : googleDocId
                 ? 'Reopens the Google Doc already created for this version'
                 : undefined

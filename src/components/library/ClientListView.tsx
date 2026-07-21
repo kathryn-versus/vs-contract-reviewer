@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { subscribeClients, getOrCreateClient, ensureClientDriveFolder } from '@/lib/firebase/firestore';
+import { subscribeClients, getOrCreateClient, ensureClientDriveFolder, setContractMarkedReceived } from '@/lib/firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { getRecentClientIds } from '@/lib/recents';
@@ -90,6 +90,14 @@ export function ClientListView() {
     () => recentClientIds.map((id) => clients.find((c) => c.id === id)).filter((c): c is ClientDoc => Boolean(c)),
     [recentClientIds, clients]
   );
+
+  async function handleMarkReceived(clientId: string, contractId: string) {
+    await setContractMarkedReceived(contractId, true);
+    setContractsByClient((prev) => ({
+      ...prev,
+      [clientId]: (prev[clientId] ?? []).map((c) => (c.id === contractId ? { ...c, markedReceived: true } : c)),
+    }));
+  }
 
   async function handleNewClient() {
     if (!newName.trim() || !user?.email) return;
@@ -194,13 +202,39 @@ export function ClientListView() {
               <Card className="p-4 transition hover:border-ink">
                 <p className="font-display text-lg text-ink">{client.name}</p>
                 <p className="mt-1 font-mono text-xs text-ink-faint">
-                  {matters.length} matter{matters.length === 1 ? '' : 's'}
+                  {matters.length} contract{matters.length === 1 ? '' : 's'}
                   {executed.length > 0 && ` · ${executed.length} executed`}
                   {matters.length > 0 && openMatters.length > 0 && ` · ${openMatters.length} open`}
                 </p>
                 <p className="mt-1 font-mono text-xs text-ink-faint">
                   {mostRecent ? `Last upload ${new Date(mostRecent).toLocaleDateString()}` : 'No uploads yet'}
                 </p>
+                {openMatters.length > 0 && (
+                  <div className="mt-2 space-y-1 border-t border-rule pt-2">
+                    {openMatters.slice(0, 3).map((m) => (
+                      <div key={m.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate font-body text-xs text-ink-soft">
+                          {m.projectName}{' '}
+                          <span className="font-mono text-[10px] text-ink-faint">({m.projectNumber})</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleMarkReceived(client.id, m.id);
+                          }}
+                          className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint hover:text-ink"
+                        >
+                          Mark received
+                        </button>
+                      </div>
+                    ))}
+                    {openMatters.length > 3 && (
+                      <p className="font-mono text-[10px] text-ink-faint">+{openMatters.length - 3} more open</p>
+                    )}
+                  </div>
+                )}
                 <p className="mt-2 font-mono text-[11px] uppercase tracking-wide">
                   {client.msaContractId || client.msaDriveFileId ? (
                     <span className="text-low">MSA on file</span>

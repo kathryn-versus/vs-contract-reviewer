@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
-import { listVersionsForContract } from '@/lib/firebase/firestore';
+import { listVersionsForContract, deleteVersion } from '@/lib/firebase/firestore';
 import type { ContractDoc, VersionDoc } from '@/lib/types';
 
 export function MatterCard({
   contract,
   onEdit,
+  onDelete,
   isGoverningMsa,
   onToggleGoverningMsa,
   autoExpand,
@@ -18,6 +19,9 @@ export function MatterCard({
 }: {
   contract: ContractDoc;
   onEdit: () => void;
+  /** Deletes this contract and every version under it. Omit to hide the
+   * Delete action entirely (e.g. for a read-only context). */
+  onDelete?: () => void;
   isGoverningMsa?: boolean;
   onToggleGoverningMsa?: () => void;
   /** Expands and highlights this card on mount — set when arriving via a
@@ -40,6 +44,14 @@ export function MatterCard({
   useEffect(() => {
     listVersionsForContract(contract.id).then(setVersions).catch(() => {});
   }, [contract.id]);
+
+  async function handleDeleteVersion(versionId: string, versionNumber: number) {
+    if (!window.confirm(`Delete v${versionNumber}? This can't be undone — the Drive file itself is not affected.`)) {
+      return;
+    }
+    await deleteVersion(contract.id, versionId);
+    setVersions((prev) => prev.filter((v) => v.id !== versionId));
+  }
 
   const latest = versions[0];
   // reviewed is optional — missing/undefined means true (see types.ts), so
@@ -140,6 +152,23 @@ export function MatterCard({
           >
             Edit
           </button>
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (
+                  window.confirm(
+                    `Delete ${contract.projectName} (${contract.projectNumber}) and all ${versions.length} version(s)? This can't be undone — Drive files are not affected.`
+                  )
+                ) {
+                  onDelete();
+                }
+              }}
+              className="font-mono text-xs text-ink-faint hover:text-high"
+            >
+              Delete
+            </button>
+          )}
           {/* Plain label now, not its own button — the whole card toggles
               expansion, so a second click target here would double-toggle. */}
           <span className="font-mono text-xs text-ink-faint">
@@ -153,13 +182,24 @@ export function MatterCard({
             <div key={v.id} className="text-sm">
               <div className="flex items-center justify-between">
                 <p className="text-ink">v{v.versionNumber} · {v.fileName}</p>
-                {v.reviewed === false ? (
-                  <span className="font-mono text-xs text-ink-faint">Filed — not reviewed</span>
-                ) : (
-                  <Link href={`/review/${contract.id}/${v.id}`} className="font-mono text-xs text-accent hover:underline">
-                    View results
-                  </Link>
-                )}
+                <div className="flex items-center gap-3">
+                  {v.reviewed === false ? (
+                    <span className="font-mono text-xs text-ink-faint">Filed — not reviewed</span>
+                  ) : (
+                    <Link href={`/review/${contract.id}/${v.id}`} className="font-mono text-xs text-accent hover:underline">
+                      View results
+                    </Link>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteVersion(v.id, v.versionNumber);
+                    }}
+                    className="font-mono text-xs text-ink-faint hover:text-high"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
               <p className="font-mono text-xs text-ink-faint">
                 {new Date(v.uploadedAt).toLocaleDateString()} · uploaded by {v.uploadedBy.name}

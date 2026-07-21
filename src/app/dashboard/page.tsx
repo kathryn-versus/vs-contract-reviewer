@@ -104,7 +104,7 @@ function DashboardView() {
       <div className="grid grid-cols-4 gap-3">
         <Card className="p-4 text-center">
           <p className="font-display text-2xl text-ink">{snapshots.length}</p>
-          <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-ink-faint">Total matters</p>
+          <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-ink-faint">Total contracts</p>
         </Card>
         <Card className="p-4 text-center">
           <p className="font-display text-2xl text-ink">{reviewed.length}</p>
@@ -123,7 +123,7 @@ function DashboardView() {
       <Card className="p-5">
         <p className="mb-4 font-mono text-[11px] uppercase tracking-wide text-ink-faint">Grade distribution</p>
         {reviewed.length === 0 ? (
-          <p className="font-mono text-sm text-ink-faint">No reviewed matters yet.</p>
+          <p className="font-mono text-sm text-ink-faint">No reviewed contracts yet.</p>
         ) : (
           <div className="space-y-2">
             {GRADE_ORDER.map((g) => (

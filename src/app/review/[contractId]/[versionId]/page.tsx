@@ -103,7 +103,7 @@ function PastReviewView({ contractId, versionId }: { contractId: string; version
       {!isLatest && latestVersion && (
         <div className="mb-6 border border-accent/30 bg-high-bg px-4 py-3">
           <p className="font-mono text-xs text-ink">
-            A newer version (v{latestVersion.versionNumber}) of this matter is on file.{' '}
+            A newer version (v{latestVersion.versionNumber}) of this contract is on file.{' '}
             <Link href={`/review/${contractId}/${latestVersion.id}`} className="text-accent hover:underline">
               View it →
             </Link>

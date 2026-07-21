@@ -257,6 +257,23 @@ export async function moveContract(
   await updateDoc(doc(db, 'contracts', contractId), updates);
 }
 
+// Deletes a single version (e.g. a duplicate or accidental upload) without
+// touching the rest of the contract's history.
+export async function deleteVersion(contractId: string, versionId: string): Promise<void> {
+  await deleteDoc(doc(db, 'contracts', contractId, 'versions', versionId));
+}
+
+// Deletes an entire contract and every version under it — for a matter that
+// was created/uploaded incorrectly from the start (wrong client, duplicate
+// job, test upload, etc.). Only removes the Firestore records; the source
+// files already uploaded to Drive are left alone, same as removing an
+// executed agreement.
+export async function deleteContract(contractId: string): Promise<void> {
+  const versionsSnap = await getDocs(collection(db, 'contracts', contractId, 'versions'));
+  await Promise.all(versionsSnap.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, 'contracts', contractId));
+}
+
 // Manual close/reopen for a matter with no executed file to upload — a
 // matter with a real linked executed agreement is closed automatically and
 // doesn't need this; this only covers the "signed elsewhere, nothing to

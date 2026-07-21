@@ -23,6 +23,7 @@ import {
   createContract,
   addVersion,
   setContractMarkedReceived,
+  deleteContract,
 } from '@/lib/firebase/firestore';
 import { recordRecentClient } from '@/lib/recents';
 import { useAuth } from '@/hooks/useAuth';
@@ -149,6 +150,11 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   async function handleToggleMarkedReceived(contractId: string, value: boolean) {
     await setContractMarkedReceived(contractId, value);
     listContractsForClient(clientId).then(setContracts);
+  }
+
+  async function handleDeleteContract(contractId: string) {
+    await deleteContract(contractId);
+    setContracts((prev) => prev.filter((c) => c.id !== contractId));
   }
 
   async function handleEnsureFolder() {
@@ -335,7 +341,7 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
             <Button variant="secondary">+ Upload contract</Button>
           </Link>
         </div>
-        <p className="font-mono text-xs text-ink-faint">{contracts.length} matters on file</p>
+        <p className="font-mono text-xs text-ink-faint">{contracts.length} contracts on file</p>
       </div>
 
       {msaContract ? (
@@ -560,12 +566,13 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
       </Card>
 
       <div className="space-y-3">
-        <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">Matters</p>
+        <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">Contracts</p>
         {contracts.map((c) => (
           <div key={c.id} id={`matter-${c.id}`}>
             <MatterCard
               contract={c}
               onEdit={() => setEditing(c)}
+              onDelete={() => handleDeleteContract(c.id)}
               isGoverningMsa={client.msaContractId === c.id}
               onToggleGoverningMsa={() => handleToggleGoverningMsa(c.id)}
               autoExpand={autoExpandMatterId === c.id}
@@ -575,7 +582,7 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
           </div>
         ))}
         {contracts.length === 0 && (
-          <p className="py-8 text-center font-mono text-sm text-ink-faint">No matters yet.</p>
+          <p className="py-8 text-center font-mono text-sm text-ink-faint">No contracts yet.</p>
         )}
       </div>
 
@@ -608,7 +615,7 @@ function EditMatterModal({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/30 p-6">
       <Card className="w-full max-w-md p-6">
-        <h3 className="font-display text-lg text-ink">Edit matter</h3>
+        <h3 className="font-display text-lg text-ink">Edit contract</h3>
         <div className="mt-4 space-y-4">
           <label className="block">
             <span className="mb-1 block font-mono text-xs uppercase text-ink-faint">Client</span>
