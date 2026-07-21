@@ -22,6 +22,7 @@ import {
   deleteExecutedAgreement,
   createContract,
   addVersion,
+  setContractMarkedReceived,
 } from '@/lib/firebase/firestore';
 import { recordRecentClient } from '@/lib/recents';
 import { useAuth } from '@/hooks/useAuth';
@@ -143,6 +144,11 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
       await setGoverningMsa(clientId, contractId);
     }
     getClient(clientId).then(setClient);
+  }
+
+  async function handleToggleMarkedReceived(contractId: string, value: boolean) {
+    await setContractMarkedReceived(contractId, value);
+    listContractsForClient(clientId).then(setContracts);
   }
 
   async function handleEnsureFolder() {
@@ -563,6 +569,8 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
               isGoverningMsa={client.msaContractId === c.id}
               onToggleGoverningMsa={() => handleToggleGoverningMsa(c.id)}
               autoExpand={autoExpandMatterId === c.id}
+              hasExecutedAgreement={executedAgreements.some((a) => a.contractId === c.id)}
+              onToggleMarkedReceived={() => handleToggleMarkedReceived(c.id, !c.markedReceived)}
             />
           </div>
         ))}

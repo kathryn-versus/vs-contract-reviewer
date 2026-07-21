@@ -257,6 +257,14 @@ export async function moveContract(
   await updateDoc(doc(db, 'contracts', contractId), updates);
 }
 
+// Manual close/reopen for a matter with no executed file to upload — a
+// matter with a real linked executed agreement is closed automatically and
+// doesn't need this; this only covers the "signed elsewhere, nothing to
+// upload" case.
+export async function setContractMarkedReceived(contractId: string, markedReceived: boolean) {
+  await updateDoc(doc(db, 'contracts', contractId), { markedReceived });
+}
+
 // Marks a contract as the client's governing MSA — feeds automatic MSA
 // context into future SOW reviews for that client (brief §11, Phase 2).
 export async function setGoverningMsa(clientId: string, contractId: string) {

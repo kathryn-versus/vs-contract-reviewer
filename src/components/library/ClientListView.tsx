@@ -187,7 +187,7 @@ export function ClientListView() {
           const matters = contractsByClient[client.id] ?? [];
           const executed = executedByClient[client.id] ?? [];
           const executedContractIds = new Set(executed.map((e) => e.contractId).filter(Boolean));
-          const openMatters = matters.filter((m) => !executedContractIds.has(m.id));
+          const openMatters = matters.filter((m) => !executedContractIds.has(m.id) && !m.markedReceived);
           const mostRecent = matters[0]?.createdAt;
           return (
             <Link key={client.id} href={`/library/${client.id}`}>

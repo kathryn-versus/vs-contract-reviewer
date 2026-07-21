@@ -13,6 +13,8 @@ export function MatterCard({
   isGoverningMsa,
   onToggleGoverningMsa,
   autoExpand,
+  hasExecutedAgreement,
+  onToggleMarkedReceived,
 }: {
   contract: ContractDoc;
   onEdit: () => void;
@@ -21,6 +23,12 @@ export function MatterCard({
   /** Expands and highlights this card on mount — set when arriving via a
    * Library search result's #matter-{id} deep link. */
   autoExpand?: boolean;
+  /** True when a real executed agreement is linked to this matter — closes
+   * it automatically, taking priority over the manual markedReceived flag. */
+  hasExecutedAgreement?: boolean;
+  /** Toggles contract.markedReceived — only meaningful when there's no
+   * linked executed agreement (that path closes a matter on its own). */
+  onToggleMarkedReceived?: () => void;
 }) {
   const [versions, setVersions] = useState<VersionDoc[]>([]);
   const [expanded, setExpanded] = useState(Boolean(autoExpand));
@@ -75,6 +83,40 @@ export function MatterCard({
             >
               {isGoverningMsa ? 'Unset as MSA' : 'Set as governing MSA'}
             </button>
+          )}
+          {hasExecutedAgreement ? (
+            <span className="rounded-full border border-low/30 bg-low-bg px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-low">
+              Executed
+            </span>
+          ) : contract.markedReceived ? (
+            <span className="flex items-center gap-1.5">
+              <span className="rounded-full border border-low/30 bg-low-bg px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-low">
+                Marked received
+              </span>
+              {onToggleMarkedReceived && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleMarkedReceived();
+                  }}
+                  className="font-mono text-xs text-ink-faint hover:text-ink"
+                >
+                  Undo
+                </button>
+              )}
+            </span>
+          ) : (
+            onToggleMarkedReceived && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleMarkedReceived();
+                }}
+                className="font-mono text-xs text-ink-faint hover:text-ink"
+              >
+                Mark as received
+              </button>
+            )
           )}
           {latestUnreviewed ? (
             <span className="rounded-full border border-rule px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-faint">

@@ -90,6 +90,12 @@ export interface ContractDoc {
   driveFolderId: string | null;
   createdAt: number;
   latestVersionId: string | null;
+  // Manually marks a matter as closed/received when there's no executed
+  // file to upload (e.g. signed elsewhere, filed outside Drive). A matter
+  // linked to a real executed agreement is closed automatically regardless
+  // of this flag — this only matters for the no-file case. Optional/missing
+  // means false, same convention as other flags added after launch.
+  markedReceived?: boolean;
 }
 
 export type Severity = 'high' | 'medium' | 'low';
