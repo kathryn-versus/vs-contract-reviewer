@@ -358,3 +358,14 @@ export async function addExecutedAgreement(
 export async function deleteExecutedAgreement(clientId: string, agreementId: string): Promise<void> {
   await deleteDoc(doc(db, 'clients', clientId, 'executedAgreements', agreementId));
 }
+
+// Points an executed agreement at a contract after the fact — used by the
+// "Reconnect" repair action on the client page for agreements uploaded
+// before contract-linking existed (or whose linked contract was deleted).
+export async function setExecutedAgreementContract(
+  clientId: string,
+  agreementId: string,
+  contractId: string
+): Promise<void> {
+  await updateDoc(doc(db, 'clients', clientId, 'executedAgreements', agreementId), { contractId });
+}

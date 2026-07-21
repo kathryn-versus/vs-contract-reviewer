@@ -24,6 +24,7 @@ import {
   addVersion,
   setContractMarkedReceived,
   deleteContract,
+  setExecutedAgreementContract,
 } from '@/lib/firebase/firestore';
 import { recordRecentClient } from '@/lib/recents';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,6 +48,7 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   const [agreementNewProjectName, setAgreementNewProjectName] = useState('');
   const [uploadingAgreement, setUploadingAgreement] = useState(false);
   const [agreementError, setAgreementError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   const { user } = useAuth();
 
   // Auto-suggest the next Change Order number so multiple change orders for
@@ -119,6 +121,14 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     }
     return projectOptions.find((p) => projectOptionKey(p.projectNumber, p.projectName) === agreementProjectKey) ?? null;
   }
+
+  // Executed agreements that have a project but aren't actually linked to a
+  // real contract — either uploaded before contract-linking existed, or
+  // pointing at a contract that's since been deleted. "Reconnect" finds or
+  // creates the matching contract for each of these.
+  const orphanedAgreements = executedAgreements.filter(
+    (a) => a.projectNumber && (!a.contractId || !contracts.some((c) => c.id === a.contractId))
+  );
 
   async function saveNotes() {
     setSavingNotes(true);
@@ -311,6 +321,71 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
     setExecutedAgreements((prev) => prev.filter((a) => a.id !== agreementId));
   }
 
+  async function handleReconnectAgreements() {
+    if (!client || orphanedAgreements.length === 0) return;
+    setReconnecting(true);
+    try {
+      let liveContracts = await listContractsForClient(clientId);
+      for (const a of orphanedAgreements) {
+        if (!a.projectNumber || !a.projectName) continue;
+        let match = liveContracts.find(
+          (c) => c.projectNumber === a.projectNumber && c.projectName === a.projectName
+        );
+        if (!match) {
+          const newContractId = await createContract({
+            clientId,
+            clientName: client.name,
+            projectName: a.projectName,
+            projectNumber: a.projectNumber,
+            docType: a.docType,
+            counterparty: client.name,
+            submittedBy: {
+              uid: user?.uid ?? '',
+              name: user?.displayName ?? user?.email ?? '',
+              email: user?.email ?? '',
+            },
+            driveFileId: a.driveFileId ?? null,
+            driveUrl: a.driveUrl ?? null,
+            driveFolderUrl: a.driveFolderUrl ?? null,
+            driveFolderId: null,
+          });
+          await addVersion(newContractId, {
+            versionNumber: 1,
+            uploadedBy: a.uploadedBy,
+            fileName: a.label || a.docType,
+            characterCount: 0,
+            findings: [],
+            insuranceRequirements: [],
+            resolvedFindings: [],
+            deltaFromPrevious: null,
+            reviewed: false,
+            driveFileId: a.driveFileId ?? null,
+            driveUrl: a.driveUrl ?? null,
+            driveFolderId: null,
+            driveFolderUrl: a.driveFolderUrl ?? null,
+            googleDocId: null,
+            googleDocUrl: null,
+            reportHtmlUrl: null,
+            reportPdfUrl: null,
+          });
+          liveContracts = await listContractsForClient(clientId);
+          match = liveContracts.find((c) => c.id === newContractId);
+        }
+        if (match) {
+          await setExecutedAgreementContract(clientId, a.id, match.id);
+        }
+      }
+      const [refreshedContracts, refreshedAgreements] = await Promise.all([
+        listContractsForClient(clientId),
+        listExecutedAgreements(clientId),
+      ]);
+      setContracts(refreshedContracts);
+      setExecutedAgreements(refreshedAgreements);
+    } finally {
+      setReconnecting(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -437,6 +512,23 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
 
       <Card className="p-5">
         <p className="mb-3 font-mono text-[11px] uppercase tracking-wide text-ink-faint">Executed agreements</p>
+        {orphanedAgreements.length > 0 && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-sm border border-med/30 bg-med-bg p-3">
+            <p className="font-body text-xs text-ink-soft">
+              {orphanedAgreements.length} executed agreement{orphanedAgreements.length === 1 ? '' : 's'} on file{' '}
+              {orphanedAgreements.length === 1 ? "isn't" : "aren't"} linked to a contract yet — this can happen for
+              files uploaded before contract-linking existed.
+            </p>
+            <button
+              type="button"
+              onClick={handleReconnectAgreements}
+              disabled={reconnecting}
+              className="shrink-0 font-mono text-xs uppercase tracking-wide text-accent hover:underline disabled:opacity-50"
+            >
+              {reconnecting ? 'Reconnecting…' : 'Reconnect now'}
+            </button>
+          </div>
+        )}
         {executedAgreements.length > 0 && (
           <div className="mb-4 space-y-2">
             {executedAgreements.map((a) => (
