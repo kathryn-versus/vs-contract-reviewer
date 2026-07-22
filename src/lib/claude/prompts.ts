@@ -51,7 +51,7 @@ export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
         id: STANDING_CONCERNS.length + 1,
         label: 'MSA alignment',
         description:
-          "Compare this document's material terms (payment, termination, liability, indemnification, IP, and anything else both documents address) against the governing MSA provided below. Flag any place where this document conflicts with, narrows, weakens, or fails to honor a protection already established in the MSA. Do not flag a term merely for repeating or incorporating the MSA by reference — only flag genuine conflicts or deviations.",
+          "Compare this document's material terms (payment, termination, liability, indemnification, IP, and anything else both documents address) against the governing MSA provided below, as amended. If the MSA context includes one or more sections marked \"--- AMENDMENT: ... ---\", treat each amendment's terms as controlling over the original MSA language it modifies — compare against the MSA as amended, not just the original text. Flag any place where this document conflicts with, narrows, weakens, or fails to honor a protection already established in the MSA (as amended). Do not flag a term merely for repeating or incorporating the MSA by reference — only flag genuine conflicts or deviations.",
       }
     : null;
 
@@ -76,7 +76,7 @@ ${
     : ''
 }${
   msaContext
-    ? `GOVERNING MSA (excerpt, pulled automatically from this client's Drive folder — use it both as background for what's already been negotiated at the master-agreement level (a SOW that simply incorporates MSA terms is not itself an issue) AND as the comparison document for the "MSA alignment" concern below):\n"""\n${msaContext}\n"""\n`
+    ? `GOVERNING MSA (excerpt, pulled automatically from this client's Drive folder, including the text of any amendments filed against it, each marked "--- AMENDMENT: ... ---" — use it both as background for what's already been negotiated at the master-agreement level (a SOW that simply incorporates MSA terms is not itself an issue) AND as the comparison document, as amended, for the "MSA alignment" concern below):\n"""\n${msaContext}\n"""\n`
     : ''
 }${
   isDeltaReview

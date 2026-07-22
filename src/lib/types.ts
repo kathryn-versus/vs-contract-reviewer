@@ -11,6 +11,14 @@ export interface UserDoc {
   lastLoginAt: number;
 }
 
+export interface MsaAmendmentDoc {
+  id: string;
+  fileName: string;
+  driveFileId: string;
+  driveUrl: string;
+  uploadedAt: number;
+}
+
 export interface ClientDoc {
   id: string;
   name: string;
@@ -33,6 +41,12 @@ export interface ClientDoc {
   // simply having neither of the two MSA fields above set (which just means
   // "not yet addressed").
   noMsa: boolean;
+  // Amendments to the governing MSA — optional/missing means none yet. Text
+  // is pulled from Drive and appended to the MSA context given to Claude on
+  // every future SOW review (see getGoverningMsaContext), so an amendment
+  // automatically factors into the "MSA alignment" concern without any extra
+  // setup per review.
+  msaAmendments?: MsaAmendmentDoc[];
   createdAt: number;
   createdBy: string;
 }

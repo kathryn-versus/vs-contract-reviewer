@@ -25,10 +25,12 @@ import {
   setContractMarkedReceived,
   deleteContract,
   setExecutedAgreementContract,
+  addMsaAmendment,
+  removeMsaAmendment,
 } from '@/lib/firebase/firestore';
 import { recordRecentClient } from '@/lib/recents';
 import { useAuth } from '@/hooks/useAuth';
-import type { ClientDoc, ContractDoc, DocType, ExecutedAgreementDoc } from '@/lib/types';
+import type { ClientDoc, ContractDoc, DocType, ExecutedAgreementDoc, MsaAmendmentDoc } from '@/lib/types';
 
 export function ClientDetailView({ clientId }: { clientId: string }) {
   const [client, setClient] = useState<ClientDoc | null>(null);
@@ -49,6 +51,8 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   const [uploadingAgreement, setUploadingAgreement] = useState(false);
   const [agreementError, setAgreementError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
+  const [uploadingAmendment, setUploadingAmendment] = useState(false);
+  const [amendmentError, setAmendmentError] = useState<string | null>(null);
   const { user } = useAuth();
 
   // Auto-suggest the next Change Order number so multiple change orders for
@@ -203,6 +207,40 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
   async function handleClearMsaFile() {
     if (!client) return;
     await clearClientMsaFile(clientId);
+    getClient(clientId).then(setClient);
+  }
+
+  async function handleUploadAmendment(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !client) return;
+    setUploadingAmendment(true);
+    setAmendmentError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('clientName', client.name);
+      const res = await fetch('/api/drive/upload-msa-amendment', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      await addMsaAmendment(clientId, {
+        id: crypto.randomUUID(),
+        fileName: file.name,
+        driveFileId: data.fileId,
+        driveUrl: data.webViewLink,
+        uploadedAt: Date.now(),
+      });
+      getClient(clientId).then(setClient);
+    } catch (err) {
+      setAmendmentError(err instanceof Error ? err.message : 'Amendment upload failed.');
+    } finally {
+      setUploadingAmendment(false);
+    }
+  }
+
+  async function handleRemoveAmendment(amendment: MsaAmendmentDoc) {
+    if (!client) return;
+    await removeMsaAmendment(clientId, amendment);
     getClient(clientId).then(setClient);
   }
 
@@ -489,6 +527,51 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
             </label>
           </div>
           {msaError && <p className="mt-2 text-sm text-high">{msaError}</p>}
+        </Card>
+      )}
+
+      {(msaContract || client.msaDriveFileId) && (
+        <Card className="p-5">
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-wide text-ink-faint">
+            MSA amendments — included alongside the MSA as context on every future SOW review
+          </p>
+          {(client.msaAmendments ?? []).length > 0 && (
+            <div className="mb-3 space-y-2">
+              {(client.msaAmendments ?? []).map((amendment) => (
+                <div
+                  key={amendment.id}
+                  className="flex items-center justify-between border-b border-rule pb-2 last:border-0 last:pb-0"
+                >
+                  <a
+                    href={amendment.driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-body text-sm text-accent hover:underline"
+                  >
+                    {amendment.fileName} ↗
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAmendment(amendment)}
+                    className="font-mono text-xs text-ink-faint hover:text-high"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <label className="inline-block cursor-pointer rounded-sm border border-rule px-3 py-1.5 font-mono text-xs uppercase tracking-wide text-ink-soft hover:border-ink">
+            {uploadingAmendment ? 'Uploading…' : '+ Add amendment'}
+            <input
+              type="file"
+              accept=".pdf,.docx,.txt"
+              className="hidden"
+              onChange={handleUploadAmendment}
+              disabled={uploadingAmendment}
+            />
+          </label>
+          {amendmentError && <p className="mt-2 text-sm text-high">{amendmentError}</p>}
         </Card>
       )}
 

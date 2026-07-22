@@ -16,9 +16,11 @@ import { deleteDoc,
   serverTimestamp,
   Timestamp,
   onSnapshot,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from './client';
-import type { ClientDoc, ContractDoc, VersionDoc, Finding, IssueThreadDoc, ThreadMessage, UserDoc, Role, ExecutedAgreementDoc } from '../types';
+import type { ClientDoc, ContractDoc, VersionDoc, Finding, IssueThreadDoc, ThreadMessage, UserDoc, Role, ExecutedAgreementDoc, MsaAmendmentDoc } from '../types';
 
 function slugify(name: string) {
   return name
@@ -126,6 +128,19 @@ export async function setClientNoMsa(clientId: string, noMsa: boolean) {
     doc(db, 'clients', clientId),
     noMsa ? { noMsa: true, msaDriveFileId: null, msaDriveUrl: null } : { noMsa: false }
   );
+}
+
+// Amendments to the governing MSA — stored as a simple array on the client
+// doc (not a subcollection) since there's usually only a handful. Each
+// amendment's text is pulled from Drive alongside the base MSA and included
+// as extra context on every future SOW review (see getGoverningMsaContext),
+// so an amendment is picked up automatically without re-running anything.
+export async function addMsaAmendment(clientId: string, amendment: MsaAmendmentDoc) {
+  await updateDoc(doc(db, 'clients', clientId), { msaAmendments: arrayUnion(amendment) });
+}
+
+export async function removeMsaAmendment(clientId: string, amendment: MsaAmendmentDoc) {
+  await updateDoc(doc(db, 'clients', clientId), { msaAmendments: arrayRemove(amendment) });
 }
 
 // ── Contracts & Versions ─────────────────────────────────────────────────
