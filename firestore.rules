@@ -28,6 +28,16 @@ service cloud.firestore {
       }
     }
 
+    // Explicit collection-group rule for executedAgreements — belt-and-
+    // suspenders alongside the nested match above, so a collectionGroup()
+    // query (used by the Library's contracts tracker and client list to
+    // read executed agreements across every client at once) is unambiguously
+    // covered under Firestore's rules resolution, not just direct per-client
+    // subcollection access.
+    match /{path=**}/executedAgreements/{agreementId} {
+      allow read: if isSignedIn();
+    }
+
     // Contracts: signed-in users can create; only submitter or admin can read
     match /contracts/{contractId} {
       allow create: if isSignedIn();
