@@ -20,7 +20,7 @@ import { deleteDoc,
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from './client';
-import type { ClientDoc, ContractDoc, VersionDoc, Finding, IssueThreadDoc, ThreadMessage, UserDoc, Role, ExecutedAgreementDoc, MsaAmendmentDoc } from '../types';
+import type { ClientDoc, ContractDoc, VersionDoc, Finding, IssueThreadDoc, ThreadMessage, UserDoc, Role, ExecutedAgreementDoc, MsaAmendmentDoc, ContractWorkflowStatus } from '../types';
 
 function slugify(name: string) {
   return name
@@ -297,6 +297,13 @@ export async function setContractMarkedReceived(contractId: string, markedReceiv
   await updateDoc(doc(db, 'contracts', contractId), { markedReceived });
 }
 
+// In-progress tracking for a matter on its way to execution (Open → Ready
+// for execution → Out for signature) — purely informational, doesn't affect
+// whether the matter counts as open/closed anywhere else in the app.
+export async function setContractWorkflowStatus(contractId: string, workflowStatus: ContractWorkflowStatus) {
+  await updateDoc(doc(db, 'contracts', contractId), { workflowStatus });
+}
+
 // Marks a contract as the client's governing MSA — feeds automatic MSA
 // context into future SOW reviews for that client (brief §11, Phase 2).
 export async function setGoverningMsa(clientId: string, contractId: string) {
@@ -372,6 +379,19 @@ export async function addExecutedAgreement(
 
 export async function deleteExecutedAgreement(clientId: string, agreementId: string): Promise<void> {
   await deleteDoc(doc(db, 'clients', clientId, 'executedAgreements', agreementId));
+}
+
+// Every executed agreement across every client — used by the Library's
+// contracts tracker to work out, in one shot, which contracts already have
+// a real signed file linked (and therefore count as Executed rather than
+// whatever their manual status says).
+export async function listAllExecutedAgreements(): Promise<ExecutedAgreementDoc[]> {
+  const snap = await getDocs(collectionGroup(db, 'executedAgreements'));
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Omit<ExecutedAgreementDoc, 'id'>),
+    uploadedAt: toMillis(d.data().uploadedAt),
+  }));
 }
 
 // Points an executed agreement at a contract after the fact — used by the

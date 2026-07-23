@@ -89,6 +89,13 @@ export interface SubmittedBy {
   email: string;
 }
 
+// Manual in-progress tracking for a matter that isn't executed/received yet
+// — purely informational, no logic downstream depends on the exact value.
+// "executed" and "received" are NOT part of this type — those are derived
+// from ExecutedAgreementDoc.contractId and ContractDoc.markedReceived
+// respectively, same as before this existed.
+export type ContractWorkflowStatus = 'open' | 'ready_for_execution' | 'out_for_signature';
+
 export interface ContractDoc {
   id: string;
   clientId: string;
@@ -110,6 +117,10 @@ export interface ContractDoc {
   // of this flag — this only matters for the no-file case. Optional/missing
   // means false, same convention as other flags added after launch.
   markedReceived?: boolean;
+  // Where an open matter stands in the path to execution — missing/undefined
+  // is treated as 'open'. Ignored entirely once the matter is executed or
+  // received; see ContractWorkflowStatus above.
+  workflowStatus?: ContractWorkflowStatus;
 }
 
 export type Severity = 'high' | 'medium' | 'low';
