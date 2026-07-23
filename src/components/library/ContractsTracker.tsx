@@ -76,24 +76,50 @@ export function ContractsTracker() {
   const [contracts, setContracts] = useState<ContractDoc[]>([]);
   const [executedContractIds, setExecutedContractIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterValue>('all');
   const [sortBy, setSortBy] = useState<'oldest' | 'client'>('oldest');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
+  // Each of the three loads independently (allSettled, not all) so one
+  // failing — say a permissions issue on just one collection — doesn't blank
+  // out the whole page silently. Any failure is logged AND shown on screen,
+  // since a query that quietly returns nothing looks identical to "there's
+  // truly no data" otherwise.
   async function refresh() {
     setLoading(true);
+    setLoadError(null);
     try {
-      const [clientsList, contractsList, agreements] = await Promise.all([
+      const [clientsResult, contractsResult, agreementsResult] = await Promise.allSettled([
         listClients(),
         listAllContracts(),
         listAllExecutedAgreements(),
       ]);
-      setClients(clientsList);
-      setContracts(contractsList);
-      setExecutedContractIds(
-        new Set(agreements.map((a) => a.contractId).filter((id): id is string => Boolean(id)))
-      );
+      if (clientsResult.status === 'fulfilled') setClients(clientsResult.value);
+      if (contractsResult.status === 'fulfilled') setContracts(contractsResult.value);
+      if (agreementsResult.status === 'fulfilled') {
+        setExecutedContractIds(
+          new Set(agreementsResult.value.map((a) => a.contractId).filter((id): id is string => Boolean(id)))
+        );
+      }
+      const failures = [
+        ['clients', clientsResult] as const,
+        ['contracts', contractsResult] as const,
+        ['executed agreements', agreementsResult] as const,
+      ].filter(([, r]) => r.status === 'rejected');
+      if (failures.length > 0) {
+        failures.forEach(([label, r]) => console.error(`ContractsTracker: failed to load ${label}`, (r as PromiseRejectedResult).reason));
+        setLoadError(
+          failures
+            .map(([label, r]) => {
+              const reason = (r as PromiseRejectedResult).reason;
+              const message = reason instanceof Error ? reason.message : String(reason);
+              return `${label}: ${message}`;
+            })
+            .join(' — ')
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -202,6 +228,11 @@ export function ContractsTracker() {
 
   return (
     <div>
+      {loadError && (
+        <p className="mb-4 border border-high bg-high-bg px-3 py-2 text-sm text-high">
+          Could not load everything: {loadError}
+        </p>
+      )}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:max-w-md">
         <Card className="p-4">
           <p className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">Missing MSA</p>
